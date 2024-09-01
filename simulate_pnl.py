@@ -2,22 +2,34 @@ import csv
 from datetime import datetime, timedelta
 import random
 
-# Book structure
+# Modified book structure
 book_structure = {
     "EM": {
-        "Greater China": ["CNH", "TWD", "HKD"],
-        "ASEAN": ["SGD", "THB", "INR", "IDR", "KRW"],
-        "C3": ["CZK", "HUF", "PLN"],
-        "CEEMEA": ["ILS", "TRY", "ZAR"],
-        "LATAM": ["BRL", "CLP", "COP", "MXN"]
+        "Greater China",
+        "ASEAN",
+        "C3",
+        "CEEMEA",
+        "LATAM"
     },
     "G10": {
-        "EURO": ["EUR", "GBP", "CHF"],
-        "Pacific G10": ["JPY", "AUD", "NZD", "CAD"],
-        "Scandies": ["DKK", "NOK", "SEK"]
+        "EURO",
+        "Pacific G10",
+        "CAD",
+        "Scandies",
+        "Special Exotics"
     },
     "PM": {
-        "Metals": ["XAU", "XAG", "XPT", "XPD"]
+        "Metals",
+        "EFP"
+    },
+    "Onshore": {
+        "China Onshore",
+        "India Onshore",
+        "Malaysia Onshore"
+    },
+    "Inventory": {
+        "Desk Inventory",
+        "Operational Books"
     }
 }
 
@@ -36,9 +48,8 @@ end_date = datetime(2024, 9, 2)
 # Generate all book names
 book_names = []
 for top_level, mid_level in book_structure.items():
-    for mid, low_level in mid_level.items():
-        for ccy in low_level:
-            book_names.append(f"{top_level}/{mid}/{ccy}")
+    for mid in mid_level:
+        book_names.append(f"{top_level}/{mid}")
 
 # Generate CSV
 with open('simulated_pnl_data.csv', 'w', newline='') as file:
@@ -47,17 +58,19 @@ with open('simulated_pnl_data.csv', 'w', newline='') as file:
 
     current_date = start_date
     while current_date <= end_date:
-        for book in book_names:
-            for session, (start_hour, end_hour) in sessions.items():
-                timestamp = current_date.replace(
-                    hour=random.randint(start_hour, end_hour - 1),
-                    minute=random.randint(0, 59),
-                    second=random.randint(0, 59)
-                )
-                if session == "EOD" and timestamp.hour == 23:
-                    timestamp = timestamp.replace(hour=22, minute=random.randint(0, 59))
-                pnl = round(random.uniform(-1000, 1000), 2)  # Random PNL between -1000 and 1000
-                writer.writerow([timestamp.isoformat(), book, pnl, session])
+        # Skip weekends
+        if current_date.weekday() < 5:  # Monday is 0, Friday is 4
+            for book in book_names:
+                for session, (start_hour, end_hour) in sessions.items():
+                    timestamp = current_date.replace(
+                        hour=random.randint(start_hour, end_hour - 1),
+                        minute=random.randint(0, 59),
+                        second=random.randint(0, 59)
+                    )
+                    if session == "EOD" and timestamp.hour == 23:
+                        timestamp = timestamp.replace(hour=22, minute=random.randint(0, 59))
+                    pnl = round(random.uniform(-1000, 1000), 2)  # Random PNL between -1000 and 1000
+                    writer.writerow([timestamp.strftime('%Y-%m-%dT%H:%M:%S'), book, pnl, session])
         current_date += timedelta(days=1)
 
 print("CSV file 'simulated_pnl_data.csv' has been generated.")
