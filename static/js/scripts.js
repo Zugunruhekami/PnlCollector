@@ -173,12 +173,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     function preprocessPnLData(data) {
         const processedData = {};
         for (const [book, sessions] of Object.entries(data)) {
-            processedData[book] = {
-                ASIA: sessions.ASIA || undefined,
-                LONDON: sessions.LONDON || undefined,
-                'NEW YORK': sessions['NEW YORK'] || undefined,
-                EOD: sessions.EOD || undefined
-            };
+            processedData[book] = sessions;
         }
         return processedData;
     }
@@ -203,9 +198,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
             row.setAttribute('data-book', book.name);
     
             const indentation = '&nbsp;'.repeat(level * 4);
-            const totalPnl = calculateTotalPnl(book);
             row.innerHTML = `
-                <div class="cell book-cell">${indentation}${book.name} <span class="total-pnl ${getTotalCellClass(totalPnl)}">${totalPnl.toFixed(2)}</span></div>
+                <div class="cell book-cell">${indentation}${book.name}</div>
                 ${renderPnLCells(book)}
             `;
     
@@ -222,13 +216,24 @@ document.addEventListener('DOMContentLoaded', (event) => {
     
     function renderPnLCells(book) {
         return ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(session => {
-            const pnl = book.pnl[session];
-            let cellClass = pnl ? (Math.abs(pnl) > getStandardDeviation(book) ? 'highlight' : '') : 'missing';
+            const pnl = calculateSessionPnl(book, session);
+            let cellClass = pnl !== null ? (Math.abs(pnl) > getStandardDeviation(book) ? 'highlight' : '') : 'missing';
             cellClass += pnl > 0 ? ' positive' : pnl < 0 ? ' negative' : '';
-            return `<div class="cell ${cellClass}">${pnl !== undefined ? pnl.toFixed(2) : '-'}</div>`;
+            return `<div class="cell ${cellClass}">${pnl !== null ? pnl.toFixed(2) : '-'}</div>`;
         }).join('');
     }
     
+    function calculateSessionPnl(book, session) {
+        if (book.children && Object.keys(book.children).length > 0) {
+            return Object.values(book.children).reduce((total, child) => {
+                const childPnl = calculateSessionPnl(child, session);
+                return total + (childPnl !== null ? childPnl : 0);
+            }, 0);
+        } else {
+            return book.pnl[session] !== undefined ? book.pnl[session] : null;
+        }
+    }
+
     function updateTableWithNewData(newData) {
         const bookParts = newData.book.split('/');
         const rows = document.querySelectorAll('.book-row');
@@ -261,11 +266,17 @@ document.addEventListener('DOMContentLoaded', (event) => {
     function createBookHierarchy(data) {
         const hierarchy = {};
         Object.entries(data).forEach(([book, pnlData]) => {
-            const [topLevel, subLevel] = book.split('/');
-            if (!hierarchy[topLevel]) {
-                hierarchy[topLevel] = { name: topLevel, children: {}, pnl: {} };
-            }
-            hierarchy[topLevel].children[subLevel] = { name: subLevel, pnl: pnlData };
+            const parts = book.split('/');
+            let current = hierarchy;
+            parts.forEach((part, index) => {
+                if (!current[part]) {
+                    current[part] = { name: part, children: {}, pnl: {} };
+                }
+                if (index === parts.length - 1) {
+                    current[part].pnl = pnlData;
+                }
+                current = current[part].children;
+            });
         });
         return hierarchy;
     }
@@ -337,7 +348,11 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }
 
     function calculateTotalPnl(book) {
-        return Object.values(book.pnl).reduce((total, pnl) => total + (pnl || 0), 0);
+        if (book.children && Object.keys(book.children).length > 0) {
+            return Object.values(book.children).reduce((total, child) => total + calculateTotalPnl(child), 0);
+        } else {
+            return Object.values(book.pnl).reduce((total, pnl) => total + (pnl || 0), 0);
+        }
     }
 
     function getTotalCellClass(totalPnl) {
