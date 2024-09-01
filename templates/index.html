@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNL Collector</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+</head>
+<body>
+    <div class="background">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
+    
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-chart-line"></i> PNL Collector</h1>
+        </header>
+        <main>
+            <form id="pnlForm" class="pnl-form">
+                <div class="form-group">
+                    <label for="book"><i class="fas fa-book"></i> Book</label>
+                    <select id="book" required>
+                        {% for book in books %}
+                            <option value="{{ book }}">{{ book }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="pnl"><i class="fas fa-dollar-sign"></i> PNL</label>
+                    <input type="number" id="pnl" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="session"><i class="fas fa-globe"></i> Session</label>
+                    <select id="session" required>
+                        <option value="ASIA">ASIA</option>
+                        <option value="LONDON">LONDON</option>
+                        <option value="NEW YORK">NEW YORK</option>
+                        <option value="EOD">EOD</option>
+                    </select>
+                </div>
+                
+                <button type="submit" class="submit-btn">
+                    <span>Submit PNL</span>
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </form>
+            
+            <div id="message" class="message"></div>
+        </main>
+    </div>
+    
+
+    <div class="fancy-link-container">
+        <a href="/" class="fancy-link" data-page="home">
+          <span class="fancy-link-text">Home</span>
+          <span class="fancy-link-icon">🏠</span>
+        </a>
+        <a href="/visualization" class="fancy-link" data-page="visualization">
+          <span class="fancy-link-text">Visualization</span>
+          <span class="fancy-link-icon">📊</span>
+        </a>
+    </div>
+    <div id="loading" class="loading-overlay" style="display: none;">
+        <div class="fancy-spinner">
+          <div class="ring"></div>
+          <div class="ring"></div>
+          <div class="dot"></div>
+        </div>
+    </div>
+
+    <div class="visualization-container">
+        <h2>Today's PNL Aggregation</h2>
+        <div id="pnlTable" class="pnl-table">
+            <div class="fancy-table">
+                <div class="table-header">
+                    <div class="header-cell">Book</div>
+                    <div class="header-cell">ASIA</div>
+                    <div class="header-cell">LONDON</div>
+                    <div class="header-cell">NEW YORK</div>
+                    <div class="header-cell">EOD</div>
+                </div>
+                <div id="tableBody" class="table-body">
+                    <!-- Table rows will be dynamically inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', path='/js/scripts.js') }}"></script>
+</body>
+</html>
