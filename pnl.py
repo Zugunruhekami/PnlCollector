@@ -31,33 +31,40 @@ def init_csv():
 # Book structure
 book_structure = {
     "EM": {
-        "Greater China": ["CNH", "TWD", "HKD"],
-        "ASEAN": ["SGD", "THB", "INR", "IDR", "KRW"],
-        "C3": ["CZK", "HUF", "PLN"],
-        "CEEMEA": ["ILS", "TRY", "ZAR"],
-        "LATAM": ["BRL", "CLP", "COP", "MXN"]
+        "Greater China",
+        "ASEAN",
+        "C3",
+        "CEEMEA",
+        "LATAM"
     },
     "G10": {
-        "EURO": ["EUR", "GBP", "CHF"],
-        "Pacific G10": ["JPY", "AUD", "NZD", "CAD"],
-        "Scandies": ["DKK", "NOK", "SEK"],
-#         "Special Exotics": [],
-#         "CME": []
+        "EURO",
+        "Pacific G10",
+        "CAD",
+        "Scandies",
+        "Special Exotics"
     },
     "PM": {
-        "Metals": ["XAU", "XAG", "XPT", "XPD"]
+        "Metals",
+        "EFP"
+    },
+    "Onshore": {
+        "China Onshore",
+        "India Onshore",
+        "Malaysia Onshore"
+    },
+    "Inventory": {
+        "Desk Inventory",
+        "Operational Books"
     }
 }
+
 
 # Helper function to get all books
 def get_all_books():
     books = []
-    for top_level, mid_level in book_structure.items():
-        for mid, low_level in mid_level.items():
-            if low_level:
-                books.extend([f"{top_level}/{mid}/{book}" for book in low_level])
-            else:
-                books.append(f"{top_level}/{mid}")
+    for top_level, sub_levels in book_structure.items():
+        books.extend([f"{top_level}/{sub_level}" for sub_level in sub_levels])
     return books
 
 # Pydantic model for PNL data
@@ -68,7 +75,11 @@ class PNLData(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "books": get_all_books()})
+    return templates.TemplateResponse("index.html", {
+        "request": request, 
+        "books": get_all_books(),
+        "book_structure": book_structure
+    })
 
 @app.post("/submit_pnl")
 async def submit_pnl(pnl_data: PNLData):
@@ -85,7 +96,6 @@ async def submit_pnl(pnl_data: PNLData):
 @app.get("/visualization", response_class=HTMLResponse)
 async def visualization(request: Request):
     return templates.TemplateResponse("visualization.html", {"request": request})
-
 
 @app.get("/get_pnl_data")
 async def get_pnl_data():
@@ -157,8 +167,9 @@ async def get_pnl_data():
         "monthly_book_pnl": monthly_book_pnl_dict,
         "book_stats": book_stats_dict,
         "overall_stats": overall_stats,
-            "todays_pnl": todays_pnl_dict  # Add this new key-value pair
-})
+        "todays_pnl": todays_pnl_dict
+    }
+)
 
 def is_valid_pnl(book: str, pnl: float) -> bool:
     df = pd.read_csv(CSV_FILE)

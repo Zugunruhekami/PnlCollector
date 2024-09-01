@@ -11,6 +11,9 @@ document.addEventListener('DOMContentLoaded', (event) => {
         renderPnLTable();
         startSessionCheck();
         // Call other functions that use pnlData for charts here
+    }).catch(error => {
+        console.error('Error fetching PNL data:', error);
+        showMessage('error', 'Failed to load PNL data. Please refresh the page.');
     });
 
     if (form) {
@@ -59,10 +62,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 if (data.detail) {
                     showMessage('error', data.detail);
                 } else {
-                    showMessage('success', data.message);
+                    handleSuccessfulSubmission(data, formData);
                     form.reset();
-                    // Update the table with new data
-                    updateTableWithNewData(formData);
                 }
             })
             .catch((error) => {
@@ -184,8 +185,14 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     function renderPnLTable() {
         const todayData = preprocessPnLData(pnlData.todays_pnl);
+        console.log("Today's data:", todayData);
         const bookHierarchy = createBookHierarchy(todayData);
         const tableBody = document.getElementById('tableBody');
+        
+        if (!tableBody) {
+            console.error('Table body element not found');
+            return;
+        }
         
         tableBody.innerHTML = '';
     
@@ -193,46 +200,24 @@ document.addEventListener('DOMContentLoaded', (event) => {
             const row = document.createElement('div');
             row.className = 'table-row book-row';
             row.setAttribute('data-level', level);
+            row.setAttribute('data-book', book.name);
     
             const indentation = '&nbsp;'.repeat(level * 4);
+            const totalPnl = calculateTotalPnl(book);
             row.innerHTML = `
-                <div class="cell book-cell">${indentation}${book.name}</div>
+                <div class="cell book-cell">${indentation}${book.name} <span class="total-pnl ${getTotalCellClass(totalPnl)}">${totalPnl.toFixed(2)}</span></div>
                 ${renderPnLCells(book)}
             `;
     
             tableBody.appendChild(row);
-            
-            if (level === 0) {
-                const summaryRow = document.createElement('div');
-                summaryRow.className = 'table-row summary-row';
-                summaryRow.innerHTML = `
-                    <div class="cell book-cell">${indentation}${book.name} Summary</div>
-                    ${renderSummaryCells(book)}
-                `;
-                tableBody.appendChild(summaryRow);
+            if (book.children) {
+                Object.values(book.children).forEach(child => renderBookRow(child, level + 1));
             }
-    
-            Object.values(book.children).forEach(child => renderBookRow(child, level + 1));
         }
     
         Object.values(bookHierarchy).forEach(book => renderBookRow(book));
         addRowGroupToggle();
         highlightMissingInputs();
-    }
-    
-    function renderSummaryCells(book) {
-        return ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(session => {
-            const pnl = calculateTotalPnL(book, session);
-            return `<div class="cell summary-cell">${pnl !== undefined ? pnl.toFixed(2) : '-'}</div>`;
-        }).join('');
-    }
-    
-    function calculateTotalPnL(book, session) {
-        let total = book.pnl[session] || 0;
-        Object.values(book.children).forEach(child => {
-            total += calculateTotalPnL(child, session);
-        });
-        return total;
     }
     
     function renderPnLCells(book) {
@@ -276,17 +261,11 @@ document.addEventListener('DOMContentLoaded', (event) => {
     function createBookHierarchy(data) {
         const hierarchy = {};
         Object.entries(data).forEach(([book, pnlData]) => {
-            const bookParts = book.split('/');
-            let currentLevel = hierarchy;
-            bookParts.forEach((part, index) => {
-                if (!currentLevel[part]) {
-                    currentLevel[part] = { name: part, children: {}, pnl: {} };
-                }
-                if (index === bookParts.length - 1) {
-                    currentLevel[part].pnl = pnlData;
-                }
-                currentLevel = currentLevel[part].children;
-            });
+            const [topLevel, subLevel] = book.split('/');
+            if (!hierarchy[topLevel]) {
+                hierarchy[topLevel] = { name: topLevel, children: {}, pnl: {} };
+            }
+            hierarchy[topLevel].children[subLevel] = { name: subLevel, pnl: pnlData };
         });
         return hierarchy;
     }
@@ -351,11 +330,18 @@ document.addEventListener('DOMContentLoaded', (event) => {
         lastUpdatedElement.textContent = `Last Updated: ${date.toLocaleString()}`;
     }
     
-    // Call this function after successful PNL submission
-    function handleSuccessfulSubmission(data) {
+    function handleSuccessfulSubmission(data, formData) {
         showMessage('success', data.message);
         updateTableWithNewData(formData);
         updateLastUpdated(data.timestamp);
+    }
+
+    function calculateTotalPnl(book) {
+        return Object.values(book.pnl).reduce((total, pnl) => total + (pnl || 0), 0);
+    }
+
+    function getTotalCellClass(totalPnl) {
+        return totalPnl > 0 ? 'positive' : totalPnl < 0 ? 'negative' : '';
     }
 });
 

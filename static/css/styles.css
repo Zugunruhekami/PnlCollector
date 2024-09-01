@@ -422,8 +422,13 @@ select option {
   background-color: rgba(255, 255, 255, 0.02);
 }
 
-.book-row {
-  cursor: pointer;
+.book-row[data-level="0"] {
+  font-weight: bold;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.book-row[data-level="1"] {
+  padding-left: 20px;
 }
 
 .book-row:hover {

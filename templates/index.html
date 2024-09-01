@@ -26,8 +26,12 @@
                 <div class="form-group">
                     <label for="book"><i class="fas fa-book"></i> Book</label>
                     <select id="book" required>
-                        {% for book in books %}
-                            <option value="{{ book }}">{{ book }}</option>
+                        {% for top_level, sub_levels in book_structure.items() %}
+                            <optgroup label="{{ top_level }}">
+                                {% for sub_level in sub_levels %}
+                                    <option value="{{ top_level }}/{{ sub_level }}">{{ top_level }}/{{ sub_level }}</option>
+                                {% endfor %}
+                            </optgroup>
                         {% endfor %}
                     </select>
                 </div>
