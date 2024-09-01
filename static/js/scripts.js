@@ -184,14 +184,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     function renderPnLTable() {
         const todayData = preprocessPnLData(pnlData.todays_pnl);
-        console.log("Today's data:", todayData);
         const bookHierarchy = createBookHierarchy(todayData);
         const tableBody = document.getElementById('tableBody');
-        
-        if (!tableBody) {
-            console.error('Table body element not found');
-            return;
-        }
         
         tableBody.innerHTML = '';
     
@@ -207,6 +201,17 @@ document.addEventListener('DOMContentLoaded', (event) => {
             `;
     
             tableBody.appendChild(row);
+            
+            if (level === 0) {
+                const summaryRow = document.createElement('div');
+                summaryRow.className = 'table-row summary-row';
+                summaryRow.innerHTML = `
+                    <div class="cell book-cell">${indentation}${book.name} Summary</div>
+                    ${renderSummaryCells(book)}
+                `;
+                tableBody.appendChild(summaryRow);
+            }
+    
             Object.values(book.children).forEach(child => renderBookRow(child, level + 1));
         }
     
@@ -215,10 +220,26 @@ document.addEventListener('DOMContentLoaded', (event) => {
         highlightMissingInputs();
     }
     
+    function renderSummaryCells(book) {
+        return ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(session => {
+            const pnl = calculateTotalPnL(book, session);
+            return `<div class="cell summary-cell">${pnl !== undefined ? pnl.toFixed(2) : '-'}</div>`;
+        }).join('');
+    }
+    
+    function calculateTotalPnL(book, session) {
+        let total = book.pnl[session] || 0;
+        Object.values(book.children).forEach(child => {
+            total += calculateTotalPnL(child, session);
+        });
+        return total;
+    }
+    
     function renderPnLCells(book) {
         return ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(session => {
             const pnl = book.pnl[session];
-            const cellClass = pnl ? (Math.abs(pnl) > getStandardDeviation(book) ? 'highlight' : '') : 'missing';
+            let cellClass = pnl ? (Math.abs(pnl) > getStandardDeviation(book) ? 'highlight' : '') : 'missing';
+            cellClass += pnl > 0 ? ' positive' : pnl < 0 ? ' negative' : '';
             return `<div class="cell ${cellClass}">${pnl !== undefined ? pnl.toFixed(2) : '-'}</div>`;
         }).join('');
     }
@@ -322,6 +343,19 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     function startSessionCheck() {
         setInterval(highlightMissingInputs, 60000); // Check every minute
+    }
+
+    function updateLastUpdated(timestamp) {
+        const lastUpdatedElement = document.getElementById('lastUpdated');
+        const date = new Date(timestamp);
+        lastUpdatedElement.textContent = `Last Updated: ${date.toLocaleString()}`;
+    }
+    
+    // Call this function after successful PNL submission
+    function handleSuccessfulSubmission(data) {
+        showMessage('success', data.message);
+        updateTableWithNewData(formData);
+        updateLastUpdated(data.timestamp);
     }
 });
 

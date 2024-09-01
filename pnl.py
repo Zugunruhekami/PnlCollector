@@ -77,7 +77,8 @@ async def submit_pnl(pnl_data: PNLData):
 
     with open(CSV_FILE, 'a', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow([datetime.now().isoformat(), pnl_data.book, pnl_data.pnl, pnl_data.session])
+        formatted_datetime = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+        writer.writerow([formatted_datetime, pnl_data.book, pnl_data.pnl, pnl_data.session])
     
     return {"message": "PNL submitted successfully"}
 
@@ -103,7 +104,7 @@ async def get_pnl_data():
     # Create today's PNL data
     todays_pnl = today_df.groupby(['book', 'session'])['pnl'].sum().unstack(fill_value=0).reset_index()
     todays_pnl_dict = todays_pnl.set_index('book').to_dict(orient='index')
-    
+
     # Cumulative PnL for each book
     cumulative_pnl = df.groupby(['date', 'book'])['pnl'].sum().unstack().cumsum()
     cumulative_pnl_dict = {

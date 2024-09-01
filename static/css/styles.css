@@ -504,6 +504,30 @@ select option {
   font-weight: bold;
 }
 
+.cell.positive {
+  color: #00ff00;
+}
+
+.cell.negative {
+  color: #ff0000;
+}
+
+.summary-row {
+  font-weight: bold;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.summary-cell {
+  font-style: italic;
+}
+
+.last-updated {
+  text-align: right;
+  font-style: italic;
+  margin-top: 10px;
+  color: var(--accent-color);
+}
+
 .highlight {
   color: #ffd700;
 }
