@@ -35,7 +35,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="pnl"><i class="fas fa-dollar-sign"></i> PNL</label>
                     <input type="number" id="pnl" step="0.01" required>
@@ -99,6 +99,28 @@
     </div>
     
     <div id="lastUpdated" class="last-updated"></div>
+
+<div class="theme-toggle">
+    <input type="checkbox" id="theme-switch" />
+    <label for="theme-switch">Dark Mode</label>
+</div>
+
+<!-- Add this inside the visualization-container div, before the pnlTable div -->
+<div class="filters">
+    <select id="bookFilter">
+        <option value="all">All Books</option>
+        {% for top_level in book_structure.keys() %}
+            <option value="{{ top_level }}">{{ top_level }}</option>
+        {% endfor %}
+    </select>
+    <select id="sessionFilter">
+        <option value="all">All Sessions</option>
+        <option value="ASIA">ASIA</option>
+        <option value="LONDON">LONDON</option>
+        <option value="NEW YORK">NEW YORK</option>
+        <option value="EOD">EOD</option>
+    </select>
+</div>
 
 
     <script src="{{ url_for('static', path='/js/scripts.js') }}"></script>

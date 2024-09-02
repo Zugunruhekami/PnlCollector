@@ -526,6 +526,16 @@ select option {
   font-style: italic;
 }
 
+.global-total {
+  font-weight: bold;
+  background-color: #f0f0f0;
+  border-bottom: 2px solid #333;
+}
+
+.global-total .cell {
+  padding: 10px 5px;
+}
+
 .last-updated {
   text-align: right;
   font-style: italic;
@@ -556,4 +566,124 @@ select option {
   100% {
       background-color: transparent;
   }
+}
+
+body.dark-mode {
+  --background-color: #1a202c;
+  --surface-color: #2d3748;
+  --text-color: #e2e8f0;
+  --accent-color: #63b3ed;
+}
+
+.theme-toggle {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1000;
+}
+
+.filters {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.filters select {
+  padding: 0.5rem;
+  border-radius: 5px;
+  background-color: var(--surface-color);
+  color: var(--text-color);
+  border: 1px solid var(--accent-color);
+}
+
+
+/* Add these new styles and modify existing ones */
+
+.visualization-container {
+  background-color: rgba(30, 41, 59, 0.8);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.fancy-table {
+  background: rgba(30, 41, 59, 0.6);
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+}
+
+.table-header {
+  background: rgba(59, 130, 246, 0.1);
+  padding: 15px;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header-cell {
+  color: var(--accent-color);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.table-body {
+  max-height: 500px;
+}
+
+.table-row {
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.table-row:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.book-cell {
+  color: #93c5fd;
+}
+
+.cell.positive {
+  color: #34d399;
+}
+
+.cell.negative {
+  color: #f87171;
+}
+
+.global-total {
+  background-color: rgba(59, 130, 246, 0.2);
+  border-top: 2px solid var(--accent-color);
+  border-bottom: 2px solid var(--accent-color);
+  font-weight: bold;
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+}
+
+.global-total .book-cell {
+  color: var(--accent-color);
+}
+
+.global-total .cell {
+  font-size: 1.1rem;
+}
+
+.last-updated {
+  margin-top: 20px;
+  font-size: 0.9rem;
+  color: #93c5fd;
+}
+
+/* Add a subtle animation for updated cells */
+@keyframes highlight {
+  0% { background-color: rgba(52, 211, 153, 0.5); }
+  100% { background-color: transparent; }
+}
+
+.updated {
+  animation: highlight 2s ease-out;
 }

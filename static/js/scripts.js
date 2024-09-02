@@ -191,27 +191,73 @@ document.addEventListener('DOMContentLoaded', (event) => {
         
         tableBody.innerHTML = '';
     
-        function renderBookRow(book, level = 0) {
-            const row = document.createElement('div');
-            row.className = 'table-row book-row';
-            row.setAttribute('data-level', level);
-            row.setAttribute('data-book', book.name);
+        // Add Global Total row
+        const globalTotal = calculateGlobalTotal(bookHierarchy);
+        const globalTotalRow = createGlobalTotalRow(globalTotal);
+        tableBody.appendChild(globalTotalRow);
     
-            const indentation = '&nbsp;'.repeat(level * 4);
-            row.innerHTML = `
-                <div class="cell book-cell">${indentation}${book.name}</div>
-                ${renderPnLCells(book)}
-            `;
+        // Define the desired order of top-level books
+        const bookOrder = ['G10', 'EM', 'PM', 'Onshore', 'Inventory'];
     
-            tableBody.appendChild(row);
-            if (book.children) {
-                Object.values(book.children).forEach(child => renderBookRow(child, level + 1));
+        // Render books in the specified order
+        bookOrder.forEach(bookName => {
+            if (bookHierarchy[bookName]) {
+                renderBookRow(bookHierarchy[bookName]);
             }
-        }
+        });
     
-        Object.values(bookHierarchy).forEach(book => renderBookRow(book));
         addRowGroupToggle();
         highlightMissingInputs();
+    }
+
+    function calculateGlobalTotal(bookHierarchy) {
+        return ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(session => {
+            return Object.values(bookHierarchy).reduce((total, book) => {
+                return total + calculateSessionPnl(book, session);
+            }, 0);
+        });
+    }
+    
+    function createGlobalTotalRow(globalTotal) {
+        const row = document.createElement('div');
+        row.className = 'table-row book-row global-total';
+        row.innerHTML = `
+            <div class="cell book-cell">Global Total</div>
+            ${globalTotal.map(pnl => `
+                <div class="cell ${pnl > 0 ? 'positive' : pnl < 0 ? 'negative' : ''}">
+                    ${pnl.toFixed(2)}
+                </div>
+            `).join('')}
+        `;
+        return row;
+    }
+    function formatLargeNumber(num) {
+        if (Math.abs(num) >= 1e9) {
+            return (num / 1e9).toFixed(2) + 'B';
+        } else if (Math.abs(num) >= 1e6) {
+            return (num / 1e6).toFixed(2) + 'M';
+        } else if (Math.abs(num) >= 1e3) {
+            return (num / 1e3).toFixed(2) + 'K';
+        }
+        return num.toFixed(2);
+    }
+    
+    function renderBookRow(book, level = 0) {
+        const row = document.createElement('div');
+        row.className = 'table-row book-row';
+        row.setAttribute('data-level', level);
+        row.setAttribute('data-book', book.name);
+    
+        const indentation = '&nbsp;'.repeat(level * 4);
+        row.innerHTML = `
+            <div class="cell book-cell">${indentation}${book.name}</div>
+            ${renderPnLCells(book)}
+        `;
+    
+        tableBody.appendChild(row);
+        if (book.children) {
+            Object.values(book.children).forEach(child => renderBookRow(child, level + 1));
+        }
     }
     
     function renderPnLCells(book) {
@@ -219,7 +265,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
             const pnl = calculateSessionPnl(book, session);
             let cellClass = pnl !== null ? (Math.abs(pnl) > getStandardDeviation(book) ? 'highlight' : '') : 'missing';
             cellClass += pnl > 0 ? ' positive' : pnl < 0 ? ' negative' : '';
-            return `<div class="cell ${cellClass}">${pnl !== null ? pnl.toFixed(2) : '-'}</div>`;
+            return `<div class="cell ${cellClass}">${pnl !== null ? formatLargeNumber(pnl) : '-'}</div>`;
         }).join('');
     }
     
