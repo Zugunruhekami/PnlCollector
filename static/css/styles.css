@@ -596,6 +596,10 @@ body.dark-mode {
   border: 1px solid var(--accent-color);
 }
 
+.highlight-session {
+  background-color: rgba(59, 130, 246, 0.1);
+  font-weight: bold;
+}
 
 /* Add these new styles and modify existing ones */
 

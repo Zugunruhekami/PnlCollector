@@ -208,6 +208,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     
         addRowGroupToggle();
         highlightMissingInputs();
+        applyFilters(); // Add this line
     }
 
     function calculateGlobalTotal(bookHierarchy) {
@@ -404,12 +405,81 @@ document.addEventListener('DOMContentLoaded', (event) => {
     function getTotalCellClass(totalPnl) {
         return totalPnl > 0 ? 'positive' : totalPnl < 0 ? 'negative' : '';
     }
+
+
 });
 
 async function fetchPnLData() {
     const response = await fetch('/get_pnl_data');
     return await response.json();
 }
+
+// Add event listeners for filters
+document.getElementById('bookFilter').addEventListener('change', applyFilters);
+document.getElementById('sessionFilter').addEventListener('change', applyFilters);
+
+function applyFilters() {
+    const bookFilter = document.getElementById('bookFilter').value;
+    const sessionFilter = document.getElementById('sessionFilter').value;
+
+    const sessions = ['ASIA', 'LONDON', 'NEW YORK', 'EOD'];
+    const sessionIndex = sessions.indexOf(sessionFilter);
+
+    document.querySelectorAll('.book-row').forEach(row => {
+        const bookCell = row.querySelector('.book-cell');
+        const bookName = bookCell.textContent.trim();
+        const level = parseInt(row.getAttribute('data-level'));
+
+        // Book filter logic
+        let shouldShowBook = bookFilter === 'all';
+        if (bookFilter !== 'all') {
+            if (level === 0) {
+                shouldShowBook = bookName === bookFilter;
+            } else {
+                let parent = row.previousElementSibling;
+                while (parent && parseInt(parent.getAttribute('data-level')) > 0) {
+                    parent = parent.previousElementSibling;
+                }
+                shouldShowBook = parent && parent.querySelector('.book-cell').textContent.trim() === bookFilter;
+            }
+        }
+
+        // Session filter logic
+        let shouldShowSession = sessionFilter === 'all';
+        if (sessionFilter !== 'all') {
+            const cells = row.querySelectorAll('.cell');
+            shouldShowSession = cells[sessionIndex + 1].textContent.trim() !== '-';
+        }
+
+        // Apply visibility
+        row.style.display = shouldShowBook && shouldShowSession ? '' : 'none';
+
+        // Highlight selected session
+        row.querySelectorAll('.cell').forEach((cell, index) => {
+            if (index === 0) return; // Skip book cell
+            cell.style.display = sessionFilter === 'all' || index === sessionIndex + 1 ? '' : 'none';
+            if (sessionFilter !== 'all' && index === sessionIndex + 1) {
+                cell.classList.add('highlight-session');
+            } else {
+                cell.classList.remove('highlight-session');
+            }
+        });
+    });
+
+    // Update header to show/hide columns based on session filter
+    const headerCells = document.querySelectorAll('.table-header .header-cell');
+    headerCells.forEach((cell, index) => {
+        if (index === 0) return; // Skip book header
+        cell.style.display = sessionFilter === 'all' || index === sessionIndex + 1 ? '' : 'none';
+    });
+}
+
+// Add dark mode toggle functionality
+const themeSwitch = document.getElementById('theme-switch');
+themeSwitch.addEventListener('change', () => {
+    document.body.classList.toggle('dark-mode');
+});
+
 
 function createCumulativePnlChart(data) {
     const ctx = document.getElementById('cumulativePnlChart').getContext('2d');
