@@ -118,6 +118,7 @@ input, select {
     border-radius: 8px;
     font-size: 1rem;
     color: var(--text-color);
+    background-color: var(--surface-color);
     transition: all 0.3s ease;
 }
 
@@ -127,10 +128,23 @@ input:focus, select:focus {
     box-shadow: 0 0 0 2px rgba(3, 218, 198, 0.2);
 }
 
+
 select option {
-    background-color: var(--surface-color);
-    color: var(--text-color);
+  background-color: var(--surface-color);
+  color: var(--text-color);
 }
+
+select optgroup {
+  font-weight: bold;
+  color: var(--accent-color);
+}
+
+select optgroup option {
+  font-weight: normal;
+  color: var(--text-color);
+  padding-left: 15px;
+}
+
 
 .submit-btn {
     display: flex;
@@ -704,4 +718,30 @@ body.dark-mode {
   right: 2px;
   font-size: 0.8em;
   color: var(--accent-color);
+}
+
+#explanationGroup {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: var(--surface-color);
+  border-radius: 8px;
+  border: 1px solid var(--accent-color);
+}
+
+#explanation {
+  width: 100%;
+  min-height: 100px;
+  padding: 0.75rem;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  font-size: 1rem;
+  color: var(--text-color);
+  resize: vertical;
+}
+
+#explanation:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(3, 218, 198, 0.2);
 }
