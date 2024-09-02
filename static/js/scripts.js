@@ -16,12 +16,27 @@ document.addEventListener('DOMContentLoaded', (event) => {
         showMessage('error', 'Failed to load PNL data. Please refresh the page.');
     });
 
+    async function isUnusualPNL(pnl, book) {
+        try {
+            const response = await fetch(`/check_unusual_pnl?book=${encodeURIComponent(book)}&pnl=${pnl}`);
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            const data = await response.json();
+            return data.is_unusual;
+        } catch (error) {
+            console.error('Error checking unusual PNL:', error);
+            // Fallback to client-side check if server request fails
+            return Math.abs(pnl) > 1000000;
+        }
+    }
+
     if (form) {
-        form.addEventListener('submit', function(e) {
+        form.addEventListener('submit', async function(e) {
             e.preventDefault();
             console.log('Form submit event triggered');
           
-            if (!validateForm()) {
+            if (!(await validateForm())) {
                 return;
             }
       
@@ -35,7 +50,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
             const formData = {
                 book: document.getElementById('book').value,
                 pnl: parseFloat(document.getElementById('pnl').value),
-                session: document.getElementById('session').value
+                session: document.getElementById('session').value,
+                explanation: document.getElementById('explanation').value
             };
       
             console.log('Sending form data:', formData);
@@ -49,7 +65,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
             })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    return response.json().then(err => { throw err; });
                 }
                 return response.json();
             })
@@ -59,12 +75,9 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     loading.style.display = 'none';
                 }
                 console.log('Response received:', data);
-                if (data.detail) {
-                    showMessage('error', data.detail);
-                } else {
-                    handleSuccessfulSubmission(data, formData);
-                    form.reset();
-                }
+                handleSuccessfulSubmission(data, formData);
+                form.reset();
+                hideExplanationField();
             })
             .catch((error) => {
                 // Hide loading spinner
@@ -72,22 +85,28 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     loading.style.display = 'none';
                 }
                 console.error('Error:', error);
-                showMessage('error', `An error occurred: ${error.message}`);
+                if (error.detail) {
+                    showMessage('error', error.detail);
+                    showExplanationField();
+                } else {
+                    showMessage('error', `An error occurred: ${error.message}`);
+                }
             });
         });
     }
-      
-    function validateForm() {
+    
+    async function validateForm() {
         const book = document.getElementById('book').value;
-        const pnl = document.getElementById('pnl').value;
+        const pnl = parseFloat(document.getElementById('pnl').value);
         const session = document.getElementById('session').value;
+        const explanation = document.getElementById('explanation').value;
       
         if (!book || book.trim() === '') {
             showMessage('error', 'Please select a book.');
             return false;
         }
       
-        if (isNaN(pnl) || pnl === '') {
+        if (isNaN(pnl)) {
             showMessage('error', 'Please enter a valid number for PNL.');
             return false;
         }
@@ -97,7 +116,29 @@ document.addEventListener('DOMContentLoaded', (event) => {
             return false;
         }
       
+        const unusual = await isUnusualPNL(pnl, book);
+        if (unusual && !explanation) {
+            showMessage('error', 'Please provide an explanation for this unusual PNL value.');
+            showExplanationField();
+            return false;
+        }
+      
         return true;
+    }
+    
+    
+    function showExplanationField() {
+        document.getElementById('explanationGroup').style.display = 'block';
+    }
+    
+    function hideExplanationField() {
+        document.getElementById('explanationGroup').style.display = 'none';
+    }
+    
+    function isUnusualPNL(pnl, book) {
+        // Implement your logic here. For example:
+        const threshold = 1000000; // 1 million
+        return Math.abs(pnl) > threshold;
     }
 
     function showMessage(type, text) {
@@ -209,6 +250,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         addRowGroupToggle();
         highlightMissingInputs();
         applyFilters(); // Add this line
+        addTooltips();
     }
 
     function calculateGlobalTotal(bookHierarchy) {
@@ -266,8 +308,25 @@ document.addEventListener('DOMContentLoaded', (event) => {
             const pnl = calculateSessionPnl(book, session);
             let cellClass = pnl !== null ? (Math.abs(pnl) > getStandardDeviation(book) ? 'highlight' : '') : 'missing';
             cellClass += pnl > 0 ? ' positive' : pnl < 0 ? ' negative' : '';
-            return `<div class="cell ${cellClass}">${pnl !== null ? formatLargeNumber(pnl) : '-'}</div>`;
+            const explanation = book.explanations && book.explanations[session] ? book.explanations[session] : '';
+            return `<div class="cell ${cellClass}" data-explanation="${explanation}">${pnl !== null ? formatLargeNumber(pnl) : '-'}</div>`;
         }).join('');
+    }
+
+    function addTooltips() {
+        document.querySelectorAll('.cell[data-explanation]').forEach(cell => {
+            const explanation = cell.getAttribute('data-explanation');
+            if (explanation) {
+                cell.classList.add('has-explanation');
+                tippy(cell, {
+                    content: explanation,
+                    arrow: true,
+                    placement: 'top',
+                    theme: 'light',
+                    allowHTML: true,
+                });
+            }
+        });
     }
     
     function calculateSessionPnl(book, session) {
@@ -308,6 +367,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         });
         
         highlightMissingInputs();
+        addTooltips();
     }
 
     function createBookHierarchy(data) {
@@ -390,7 +450,29 @@ document.addEventListener('DOMContentLoaded', (event) => {
     
     function handleSuccessfulSubmission(data, formData) {
         showMessage('success', data.message);
+        
+        // Update pnlData with the new submission
+        if (!pnlData.todays_pnl[formData.book]) {
+            pnlData.todays_pnl[formData.book] = {};
+        }
+        pnlData.todays_pnl[formData.book][formData.session] = formData.pnl;
+        
+        // Add explanation if provided
+        if (formData.explanation) {
+            if (!pnlData.todays_pnl[formData.book].explanations) {
+                pnlData.todays_pnl[formData.book].explanations = {};
+            }
+            pnlData.todays_pnl[formData.book].explanations[formData.session] = formData.explanation;
+        }
+        
+        // Update the table with new data
         updateTableWithNewData(formData);
+        
+        // If there's an explanation, re-render the entire table to ensure tooltips are updated
+        if (formData.explanation) {
+            renderPnLTable();
+        }
+        
         updateLastUpdated(data.timestamp);
     }
 

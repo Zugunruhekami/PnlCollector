@@ -691,3 +691,17 @@ body.dark-mode {
 .updated {
   animation: highlight 2s ease-out;
 }
+
+.cell.has-explanation {
+  position: relative;
+  cursor: pointer;
+}
+
+.cell.has-explanation::after {
+  content: "ⓘ";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 0.8em;
+  color: var(--accent-color);
+}

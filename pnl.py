@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import csv
 from datetime import datetime
 import pandas as pd
@@ -72,6 +72,7 @@ class PNLData(BaseModel):
     book: str
     pnl: float
     session: str
+    explanation: Optional[str] = None
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -81,21 +82,30 @@ async def index(request: Request):
         "book_structure": book_structure
     })
 
+
 @app.post("/submit_pnl")
 async def submit_pnl(pnl_data: PNLData):
-    if not is_valid_pnl(pnl_data.book, pnl_data.pnl):
-        raise HTTPException(status_code=400, detail="PNL value seems unusual. Please double-check.")
-
+    if is_unusual_pnl(pnl_data.book, pnl_data.pnl):
+        if not pnl_data.explanation:
+            raise HTTPException(status_code=400, detail="PNL value seems unusual. Please provide an explanation.")
+    
     with open(CSV_FILE, 'a', newline='') as file:
         writer = csv.writer(file)
         formatted_datetime = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-        writer.writerow([formatted_datetime, pnl_data.book, pnl_data.pnl, pnl_data.session])
+        writer.writerow([formatted_datetime, pnl_data.book, pnl_data.pnl, pnl_data.session, pnl_data.explanation])
     
-    return {"message": "PNL submitted successfully"}
+    return {"message": "PNL submitted successfully", "timestamp": formatted_datetime}
+
+
+@app.get("/check_unusual_pnl")
+async def check_unusual_pnl(book: str, pnl: float):
+    return {"is_unusual": is_unusual_pnl(book, pnl)}
 
 @app.get("/visualization", response_class=HTMLResponse)
 async def visualization(request: Request):
     return templates.TemplateResponse("visualization.html", {"request": request})
+
+
 
 @app.get("/get_pnl_data")
 async def get_pnl_data():
@@ -171,18 +181,20 @@ async def get_pnl_data():
     }
 )
 
-def is_valid_pnl(book: str, pnl: float) -> bool:
+def is_unusual_pnl(book: str, pnl: float) -> bool:
     df = pd.read_csv(CSV_FILE)
     book_data = df[df['book'] == book]
     
     if len(book_data) < 5:  # Not enough historical data
-        return True
+        return abs(pnl) > 1000000  # Use absolute threshold for new books
     
     mean = book_data['pnl'].mean()
     std = book_data['pnl'].std()
     z_score = (pnl - mean) / std
     
-    return abs(z_score) <= 3  # Allow values within 3 standard deviations
+    return abs(z_score) > 3 or abs(pnl) > 1000000  # Combine both conditions
+
+    
 
 if __name__ == '__main__':
     import uvicorn
