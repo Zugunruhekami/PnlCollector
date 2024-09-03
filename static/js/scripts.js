@@ -222,11 +222,10 @@ document.addEventListener('DOMContentLoaded', (event) => {
     function renderPnLTable() {
         const todayData = preprocessPnLData(pnlData.todays_pnl);
         console.log("Today's data:", todayData);
-
+    
         if (Object.keys(todayData).length === 0) {
             initializeEmptyTable();
         } else {
-
             const bookHierarchy = createBookHierarchy(todayData);
             const tableBody = document.getElementById('tableBody');
             
@@ -249,15 +248,18 @@ document.addEventListener('DOMContentLoaded', (event) => {
             bookOrder.forEach(bookName => {
                 if (bookHierarchy[bookName]) {
                     renderBookRow(bookHierarchy[bookName]);
+                } else {
+                    console.warn(`Book "${bookName}" not found in hierarchy`);
                 }
             });
         }
     
         addRowGroupToggle();
         highlightMissingInputs();
-        applyFilters(); // Add this line
+        applyFilters();
         addTooltips();
     }
+    
 
     function calculateGlobalTotal(bookHierarchy) {
         return ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(session => {
@@ -280,18 +282,20 @@ document.addEventListener('DOMContentLoaded', (event) => {
         `;
         return row;
     }
-    function formatLargeNumber(num) {
-        if (Math.abs(num) >= 1e9) {
-            return (num / 1e9).toFixed(2) + 'B';
-        } else if (Math.abs(num) >= 1e6) {
-            return (num / 1e6).toFixed(2) + 'M';
-        } else if (Math.abs(num) >= 1e3) {
-            return (num / 1e3).toFixed(2) + 'K';
-        }
-        return num.toFixed(2);
-    }
+
     
     function renderBookRow(book, level = 0) {
+        if (!book) {
+            console.error('Attempted to render undefined book');
+            return;
+        }
+    
+        const tableBody = document.getElementById('tableBody');
+        if (!tableBody) {
+            console.error('Table body not found');
+            return;
+        }
+    
         const row = document.createElement('div');
         row.className = 'table-row book-row';
         row.setAttribute('data-level', level);
@@ -347,59 +351,75 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }
 
     function updateTableWithNewData(formData) {
-        const { book, session, pnl } = formData;
+        const { book, session, pnl, explanation } = formData;
         const bookParts = book.split('/');
         const rows = document.querySelectorAll('.book-row');
         
-        let updatedCell = null;
+        const sessionIndex = ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].indexOf(session);
         
-        rows.forEach(row => {
-            const level = parseInt(row.getAttribute('data-level'));
-            const bookCell = row.querySelector('.book-cell');
-            const bookName = bookCell.textContent.trim();
-            
-            if (bookParts.slice(0, level + 1).join('/') === bookName) {
-                const cells = row.querySelectorAll('.cell');
-                const sessionIndex = ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].indexOf(session);
-                
-                if (sessionIndex !== -1) {
-                    const cell = cells[sessionIndex + 1];
-                    const oldPnl = parseFloat(cell.textContent.replace(/[KMB]/g, '')) || 0;
-                    const newPnl = parseFloat(pnl);
-                    const difference = newPnl - oldPnl;
-                    
-                    cell.textContent = formatLargeNumber(newPnl);
-                    cell.classList.remove('missing');
-                    cell.classList.add('updated');
-                    
-                    setTimeout(() => {
-                        cell.classList.remove('updated');
-                    }, 2000);
-                    
-                    updatedCell = cell;
-                    
-                    // Update parent cells
-                    let parentRow = row;
-                    while (parentRow && parseInt(parentRow.getAttribute('data-level')) > 0) {
-                        parentRow = parentRow.previousElementSibling;
-                        if (parentRow) {
-                            const parentCell = parentRow.querySelectorAll('.cell')[sessionIndex + 1];
-                            const parentPnl = parseFloat(parentCell.textContent.replace(/[KMB]/g, '')) || 0;
-                            parentCell.textContent = formatLargeNumber(parentPnl + difference);
-                        }
-                    }
-                }
-            }
+        if (sessionIndex === -1) {
+            console.error('Invalid session:', session);
+            return;
+        }
+    
+        // Update the child book
+        const childRow = Array.from(rows).find(row => {
+            const rowBook = row.getAttribute('data-book');
+            return rowBook === bookParts[bookParts.length - 1] && 
+                   parseInt(row.getAttribute('data-level')) === bookParts.length - 1;
         });
-        
-        if (updatedCell) {
+    
+        if (childRow) {
+            const cell = childRow.querySelectorAll('.cell')[sessionIndex + 1];
+            const oldPnl = parseLargeNumber(cell.textContent);
+            const newPnl = parseFloat(pnl);
+            const difference = newPnl - oldPnl;
+            
+            updateCell(cell, newPnl, explanation);
+    
+            // Update parent book
+            const parentRow = Array.from(rows).find(row => {
+                return row.getAttribute('data-book') === bookParts[0] && 
+                       parseInt(row.getAttribute('data-level')) === 0;
+            });
+    
+            if (parentRow) {
+                updateParentBook(parentRow, sessionIndex, difference);
+            } else {
+                console.error('Parent row not found for book:', bookParts[0]);
+            }
+    
             updateGlobalTotal();
+        } else {
+            console.error('Child row not found for book:', bookParts[bookParts.length - 1]);
         }
         
         highlightMissingInputs();
         addTooltips();
     }
-
+    
+    function updateCell(cell, value, explanation = '') {
+        cell.textContent = formatLargeNumber(value);
+        cell.classList.remove('missing', 'warning');
+        cell.classList.add('updated');
+        
+        if (explanation) {
+            cell.setAttribute('data-explanation', explanation);
+            cell.classList.add('has-explanation');
+        }
+        
+        setTimeout(() => {
+            cell.classList.remove('updated');
+        }, 2000);
+    }
+    
+    function updateParentBook(parentRow, sessionIndex, difference) {
+        const parentCell = parentRow.querySelectorAll('.cell')[sessionIndex + 1];
+        const parentPnl = parseLargeNumber(parentCell.textContent);
+        const newParentPnl = parentPnl + difference;
+        updateCell(parentCell, newParentPnl);
+    }
+    
     function updateGlobalTotal() {
         const globalTotalRow = document.querySelector('.global-total');
         if (globalTotalRow) {
@@ -408,11 +428,44 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 let total = 0;
                 document.querySelectorAll('.book-row[data-level="0"]').forEach(row => {
                     const cell = row.querySelectorAll('.cell')[index + 1];
-                    total += parseFloat(cell.textContent) || 0;
+                    const cellValue = parseLargeNumber(cell.textContent);
+                    total += cellValue;
                 });
-                cells[index + 1].textContent = total.toFixed(2);
+                updateCell(cells[index + 1], total);
             });
         }
+    }
+    
+    function formatLargeNumber(num) {
+        if (typeof num === 'string') {
+            num = parseLargeNumber(num);
+        }
+        if (isNaN(num)) return '0.00';
+        if (Math.abs(num) >= 1e9) {
+            return (num / 1e9).toFixed(2) + 'B';
+        } else if (Math.abs(num) >= 1e6) {
+            return (num / 1e6).toFixed(2) + 'M';
+        } else if (Math.abs(num) >= 1e3) {
+            return (num / 1e3).toFixed(2) + 'K';
+        }
+        return num.toFixed(2);
+    }
+    
+    function parseLargeNumber(str) {
+        if (typeof str === 'number') return str;
+        str = str.replace(/,/g, '');
+        let multiplier = 1;
+        if (str.endsWith('K')) {
+            multiplier = 1e3;
+            str = str.slice(0, -1);
+        } else if (str.endsWith('M')) {
+            multiplier = 1e6;
+            str = str.slice(0, -1);
+        } else if (str.endsWith('B')) {
+            multiplier = 1e9;
+            str = str.slice(0, -1);
+        }
+        return parseFloat(str) * multiplier;
     }
 
     function initializeEmptyTable() {
@@ -551,27 +604,33 @@ document.addEventListener('DOMContentLoaded', (event) => {
     function handleSuccessfulSubmission(data, formData) {
         showMessage('success', data.message);
         
-        // Update pnlData with the new submission
-        if (!pnlData.todays_pnl[formData.book]) {
-            pnlData.todays_pnl[formData.book] = {};
+        const bookParts = formData.book.split('/');
+        const parentBook = bookParts[0];
+        const childBook = bookParts[bookParts.length - 1];
+    
+        // Ensure the parent book exists in pnlData
+        if (!pnlData.todays_pnl[parentBook]) {
+            pnlData.todays_pnl[parentBook] = {};
         }
-        pnlData.todays_pnl[formData.book][formData.session] = formData.pnl;
+    
+        // Ensure the child book exists under the parent
+        if (!pnlData.todays_pnl[parentBook][childBook]) {
+            pnlData.todays_pnl[parentBook][childBook] = {};
+        }
+    
+        // Update the PNL for the child book
+        pnlData.todays_pnl[parentBook][childBook][formData.session] = formData.pnl;
         
         // Add explanation if provided
         if (formData.explanation) {
-            if (!pnlData.todays_pnl[formData.book].explanations) {
-                pnlData.todays_pnl[formData.book].explanations = {};
+            if (!pnlData.todays_pnl[parentBook][childBook].explanations) {
+                pnlData.todays_pnl[parentBook][childBook].explanations = {};
             }
-            pnlData.todays_pnl[formData.book].explanations[formData.session] = formData.explanation;
+            pnlData.todays_pnl[parentBook][childBook].explanations[formData.session] = formData.explanation;
         }
         
         // Update the table with new data
         updateTableWithNewData(formData);
-        
-        // If there's an explanation, re-render the entire table to ensure tooltips are updated
-        if (formData.explanation) {
-            renderPnLTable();
-        }
         
         updateLastUpdated(data.timestamp);
     }
