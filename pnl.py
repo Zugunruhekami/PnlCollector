@@ -89,10 +89,29 @@ async def submit_pnl(pnl_data: PNLData):
         if not pnl_data.explanation:
             raise HTTPException(status_code=400, detail="PNL value seems unusual. Please provide an explanation.")
     
-    with open(CSV_FILE, 'a', newline='') as file:
-        writer = csv.writer(file)
-        formatted_datetime = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
-        writer.writerow([formatted_datetime, pnl_data.book, pnl_data.pnl, pnl_data.session, pnl_data.explanation])
+    current_time = datetime.now()
+    formatted_datetime = current_time.strftime('%Y-%m-%dT%H:%M:%S')
+
+    df = pd.read_csv(CSV_FILE)
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    
+    # Filter out the old entry for the same book and session on the same day
+    same_day = df['timestamp'].dt.date == current_time.date()
+    same_book_session = (df['book'] == pnl_data.book) & (df['session'] == pnl_data.session)
+    df = df[~(same_day & same_book_session)]
+
+    # Append the new entry
+    new_row = pd.DataFrame({
+        'timestamp': [formatted_datetime],
+        'book': [pnl_data.book],
+        'pnl': [pnl_data.pnl],
+        'session': [pnl_data.session],
+        'explanation': [pnl_data.explanation]
+    })
+    df = pd.concat([df, new_row], ignore_index=True)
+
+    # Save the updated DataFrame back to CSV
+    df.to_csv(CSV_FILE, index=False)
     
     return {"message": "PNL submitted successfully", "timestamp": formatted_datetime}
 
@@ -112,72 +131,76 @@ async def get_pnl_data():
     df = pd.read_csv(CSV_FILE)
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df['date'] = df['timestamp'].dt.date
-    df['day_of_week'] = df['timestamp'].dt.dayofweek
-    df['month'] = df['timestamp'].dt.to_period('M').astype(str)
 
     # Get today's date
-    today = pd.Timestamp.now().date()
+    today = datetime.now().date()
 
-    # Filter today's data
-    today_df = df[df['date'] == today]
+    # Filter today's data and get the latest entry for each book and session
+    today_df = df[df['date'] == today].sort_values('timestamp')
+    today_df = today_df.groupby(['book', 'session']).last().reset_index()
 
     # Create today's PNL data
-    todays_pnl = today_df.groupby(['book', 'session'])['pnl'].sum().unstack(fill_value=0).reset_index()
-    todays_pnl_dict = todays_pnl.set_index('book').to_dict(orient='index')
+    todays_pnl_dict = {}
+    for _, row in today_df.iterrows():
+        if row['book'] not in todays_pnl_dict:
+            todays_pnl_dict[row['book']] = {'ASIA': 0, 'LONDON': 0, 'NEW YORK': 0, 'EOD': 0, 'explanations': {}}
+        todays_pnl_dict[row['book']][row['session']] = row['pnl']
+        if pd.notna(row['explanation']):
+            todays_pnl_dict[row['book']]['explanations'][row['session']] = row['explanation']
 
-    # Cumulative PnL for each book
-    cumulative_pnl = df.groupby(['date', 'book'])['pnl'].sum().unstack().cumsum()
+    # Calculate cumulative PNL (sum across days, not sessions)
+    cumulative_pnl = df.groupby(['date', 'book']).last().groupby('book')['pnl'].cumsum().unstack()
     cumulative_pnl_dict = {
         str(date): {book: float(pnl) for book, pnl in row.items()}
         for date, row in cumulative_pnl.iterrows()
     }
 
-    # Daily PnL contribution from each session
-    daily_session_pnl = df.groupby(['date', 'session'])['pnl'].sum().unstack()
+    # Get daily session PNL (latest observation for each session)
+    daily_session_pnl = df.sort_values('timestamp').groupby(['date', 'session']).last()['pnl'].unstack()
     daily_session_pnl_dict = {
         str(date): {session: float(pnl) for session, pnl in row.items()}
         for date, row in daily_session_pnl.iterrows()
     }
 
-    # PnL performance across books and days of the week
-    heatmap_data = df.groupby(['book', 'day_of_week'])['pnl'].mean().unstack()
-    heatmap_data_dict = {
-        book: [float(pnl) for pnl in row]
-        for book, row in heatmap_data.iterrows()
-    }
+    # # PnL performance across books and days of the week
+    # heatmap_data = df.groupby(['book', 'day_of_week'])['pnl'].mean().unstack()
+    # heatmap_data_dict = {
+    #     book: [float(pnl) for pnl in row]
+    #     for book, row in heatmap_data.iterrows()
+    # }
 
-    # Monthly performance of different books
-    monthly_book_pnl = df.groupby(['month', 'book'])['pnl'].sum().unstack()
-    monthly_book_pnl_dict = {
-        str(month): {book: float(pnl) for book, pnl in row.items()}
-        for month, row in monthly_book_pnl.iterrows()
-    }
+    # # Monthly performance of different books
+    # monthly_book_pnl = df.groupby(['month', 'book'])['pnl'].sum().unstack()
+    # monthly_book_pnl_dict = {
+    #     str(month): {book: float(pnl) for book, pnl in row.items()}
+    #     for month, row in monthly_book_pnl.iterrows()
+    # }
 
-    # PnL, frequency, and volatility for each book
-    book_stats = df.groupby('book').agg({
-        'pnl': ['sum', 'count', 'std']
-    }).reset_index()
-    book_stats.columns = ['book', 'total_pnl', 'frequency', 'volatility']
-    book_stats_dict = book_stats.to_dict(orient='records')
+    # # PnL, frequency, and volatility for each book
+    # book_stats = df.groupby('book').agg({
+    #     'pnl': ['sum', 'count', 'std']
+    # }).reset_index()
+    # book_stats.columns = ['book', 'total_pnl', 'frequency', 'volatility']
+    # book_stats_dict = book_stats.to_dict(orient='records')
 
-    # Calculate overall statistics
-    overall_stats = {
-        'total_pnl': float(df['pnl'].sum()),
-        'average_daily_pnl': float(df.groupby('date')['pnl'].sum().mean()),
-        'best_performing_book': book_stats.loc[book_stats['total_pnl'].idxmax(), 'book'],
-        'worst_performing_book': book_stats.loc[book_stats['total_pnl'].idxmin(), 'book'],
-        'best_performing_session': df.groupby('session')['pnl'].sum().idxmax(),
-        'worst_performing_session': df.groupby('session')['pnl'].sum().idxmin(),
-    }
+    # # Calculate overall statistics
+    # overall_stats = {
+    #     'total_pnl': float(df['pnl'].sum()),
+    #     'average_daily_pnl': float(df.groupby('date')['pnl'].sum().mean()),
+    #     'best_performing_book': book_stats.loc[book_stats['total_pnl'].idxmax(), 'book'],
+    #     'worst_performing_book': book_stats.loc[book_stats['total_pnl'].idxmin(), 'book'],
+    #     'best_performing_session': df.groupby('session')['pnl'].sum().idxmax(),
+    #     'worst_performing_session': df.groupby('session')['pnl'].sum().idxmin(),
+    # }
 
     return JSONResponse(content={
+        "todays_pnl": todays_pnl_dict,
         "cumulative_pnl": cumulative_pnl_dict,
         "daily_session_pnl": daily_session_pnl_dict,
-        "heatmap_data": heatmap_data_dict,
-        "monthly_book_pnl": monthly_book_pnl_dict,
-        "book_stats": book_stats_dict,
-        "overall_stats": overall_stats,
-        "todays_pnl": todays_pnl_dict
+        # "heatmap_data": heatmap_data_dict,
+        # "monthly_book_pnl": monthly_book_pnl_dict,
+        # "book_stats": book_stats_dict,
+        # "overall_stats": overall_stats,
     }
 )
 
