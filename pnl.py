@@ -7,6 +7,7 @@ import csv
 from datetime import datetime
 import pandas as pd
 import os
+import json
 from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
@@ -74,12 +75,24 @@ class PNLData(BaseModel):
     session: str
     explanation: Optional[str] = None
 
+def convert_sets_to_lists(obj):
+    if isinstance(obj, set):
+        return list(obj)
+    elif isinstance(obj, dict):
+        return {k: convert_sets_to_lists(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_sets_to_lists(v) for v in obj]
+    else:
+        return obj
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    serializable_book_structure = convert_sets_to_lists(book_structure)
     return templates.TemplateResponse("index.html", {
         "request": request, 
         "books": get_all_books(),
-        "book_structure": book_structure
+        "book_structure": book_structure,  # Original structure for server-side rendering
+        "book_structure_json": json.dumps(serializable_book_structure)  # JSON for client-side use
     })
 
 

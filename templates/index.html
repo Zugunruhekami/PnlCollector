@@ -28,6 +28,7 @@
             <form id="pnlForm" class="pnl-form">
                 <div class="form-group">
                     <label for="book"><i class="fas fa-book"></i> Book</label>
+                    <!-- For server-side rendering -->
                     <select id="book" required>
                         {% for top_level, sub_levels in book_structure.items() %}
                             <optgroup label="{{ top_level }}">
@@ -127,6 +128,11 @@
         <option value="EOD">EOD</option>
     </select>
 </div>
-    <script src="{{ url_for('static', path='/js/scripts.js') }}"></script>
+
+<!-- For client-side JavaScript -->
+<script>
+const book_structure = {{ book_structure_json | safe }};
+</script>
+<script src="{{ url_for('static', path='/js/scripts.js') }}"></script>
 </body>
 </html>

@@ -5,6 +5,12 @@ document.addEventListener('DOMContentLoaded', (event) => {
     const pnlTable = document.getElementById('pnlTable');
     let pnlData = [];
 
+
+    if (typeof book_structure === 'undefined') {
+        console.error('book_structure is not defined');
+        return;
+    }
+    
     // Fetch initial PNL data
     fetchPnLData().then(data => {
         pnlData = data;
@@ -14,6 +20,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }).catch(error => {
         console.error('Error fetching PNL data:', error);
         showMessage('error', 'Failed to load PNL data. Please refresh the page.');
+        initializeEmptyTable(); // Call this when there's an error fetching data
     });
 
     async function isUnusualPNL(pnl, book) {
@@ -284,7 +291,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }
 
     
-    function renderBookRow(book, level = 0) {
+    function renderBookRow(book, level = 0, parentName = '') {
         if (!book) {
             console.error('Attempted to render undefined book');
             return;
@@ -302,24 +309,35 @@ document.addEventListener('DOMContentLoaded', (event) => {
         row.setAttribute('data-book', book.name);
     
         const indentation = '&nbsp;'.repeat(level * 4);
+        const displayName = level === 0 ? book.name : book.name.split('/').pop();
         row.innerHTML = `
-            <div class="cell book-cell">${indentation}${book.name}</div>
+            <div class="cell book-cell">${indentation}${displayName}</div>
             ${renderPnLCells(book)}
         `;
     
         tableBody.appendChild(row);
         if (book.children) {
-            Object.values(book.children).forEach(child => renderBookRow(child, level + 1));
+            Object.values(book.children).forEach(child => 
+                renderBookRow(child, level + 1, book.name)
+            );
         }
     }
     
     function renderPnLCells(book) {
         return ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(session => {
             const pnl = calculateSessionPnl(book, session);
-            let cellClass = pnl !== null ? (Math.abs(pnl) > getStandardDeviation(book) ? 'highlight' : '') : 'missing';
-            cellClass += pnl > 0 ? ' positive' : pnl < 0 ? ' negative' : '';
+            let cellClass = '';
+            if (pnl !== null) {
+                cellClass += Math.abs(pnl) > getStandardDeviation(book) ? 'highlight ' : '';
+                cellClass += pnl > 0 ? 'positive ' : pnl < 0 ? 'negative ' : '';
+            } else {
+                cellClass = 'missing ';
+            }
             const explanation = book.explanations && book.explanations[session] ? book.explanations[session] : '';
-            return `<div class="cell ${cellClass}" data-explanation="${explanation}">${pnl !== null ? formatLargeNumber(pnl) : '-'}</div>`;
+            if (explanation) {
+                cellClass += 'has-explanation ';
+            }
+            return `<div class="cell ${cellClass.trim()}" data-explanation="${explanation}">${pnl !== null ? formatLargeNumber(pnl) : '-'}</div>`;
         }).join('');
     }
 
@@ -475,6 +493,11 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }
 
     function initializeEmptyTable() {
+        if (typeof book_structure === 'undefined') {
+            console.error('book_structure is not defined');
+            return;
+        }
+    
         const tableBody = document.getElementById('tableBody');
         tableBody.innerHTML = '';
     
@@ -483,15 +506,16 @@ document.addEventListener('DOMContentLoaded', (event) => {
             row.className = 'table-row book-row';
             row.setAttribute('data-level', level);
             row.setAttribute('data-book', bookName);
-    
+        
             const indentation = '&nbsp;'.repeat(level * 4);
+            const displayName = level === 0 ? bookName : bookName.split('/').pop();
             row.innerHTML = `
-                <div class="cell book-cell">${indentation}${bookName}</div>
+                <div class="cell book-cell">${indentation}${displayName}</div>
                 ${['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(() => `
                     <div class="cell missing">-</div>
                 `).join('')}
             `;
-    
+        
             tableBody.appendChild(row);
         }
     
@@ -499,8 +523,10 @@ document.addEventListener('DOMContentLoaded', (event) => {
         function renderEmptyHierarchy(hierarchy, level = 0) {
             Object.entries(hierarchy).forEach(([bookName, subBooks]) => {
                 renderEmptyBookRow(bookName, level);
-                if (Object.keys(subBooks).length > 0) {
-                    renderEmptyHierarchy(subBooks, level + 1);
+                if (Array.isArray(subBooks)) {
+                    subBooks.forEach(subBook => {
+                        renderEmptyBookRow(`${bookName}/${subBook}`, level + 1);
+                    });
                 }
             });
         }
@@ -516,7 +542,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 <div class="cell">0.00</div>
             `).join('')}
         `;
-        tableBody.appendChild(globalTotalRow);
+        tableBody.insertBefore(globalTotalRow, tableBody.firstChild);
     
         addRowGroupToggle();
         highlightMissingInputs();
