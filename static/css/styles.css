@@ -389,15 +389,7 @@ select optgroup option {
         padding: 1rem;
     }
 }
-.visualization-container {
-  margin-top: 2rem;
-  background-color: var(--surface-color);
-  border-radius: 15px;
-  padding: 1.5rem;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-}
+
 
 .pnl-table {
   overflow-x: auto;
@@ -618,10 +610,14 @@ body.dark-mode {
 /* Add these new styles and modify existing ones */
 
 .visualization-container {
+  margin-top: 2rem;
   background-color: rgba(30, 41, 59, 0.8);
   border-radius: 20px;
   padding: 2rem;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  max-width: 95%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .fancy-table {
@@ -696,7 +692,6 @@ body.dark-mode {
   color: #93c5fd;
 }
 
-/* Add a subtle animation for updated cells */
 @keyframes highlight {
   0% { background-color: rgba(52, 211, 153, 0.5); }
   100% { background-color: transparent; }
@@ -718,6 +713,15 @@ body.dark-mode {
   right: 2px;
   font-size: 0.8em;
   color: var(--accent-color);
+}
+
+.book-row[data-level="0"] {
+  font-weight: bold;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.book-row[data-level="1"] {
+  padding-left: 20px;
 }
 
 #explanationGroup {
@@ -744,4 +748,38 @@ body.dark-mode {
   outline: none;
   border-color: var(--accent-color);
   box-shadow: 0 0 0 2px rgba(3, 218, 198, 0.2);
+}
+
+.cell.unusual-pnl {
+  position: relative;
+  font-weight: bold;
+}
+
+.cell.unusual-pnl::before {
+  content: "!";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 0.8em;
+  color: #FF4500;
+  background-color: rgba(255, 69, 0, 0.2);
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+}
+
+.cell.unusual-pnl::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid #FF4500;
+  border-radius: 4px;
+  pointer-events: none;
 }

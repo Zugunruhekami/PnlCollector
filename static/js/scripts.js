@@ -400,8 +400,14 @@ document.addEventListener('DOMContentLoaded', (event) => {
     
     function updateCell(cell, value, explanation = '') {
         cell.textContent = formatLargeNumber(value);
-        cell.classList.remove('missing', 'warning');
+        cell.classList.remove('missing', 'warning', 'positive', 'negative');
         cell.classList.add('updated');
+        
+        if (value > 0) {
+            cell.classList.add('positive');
+        } else if (value < 0) {
+            cell.classList.add('negative');
+        }
         
         if (explanation) {
             cell.setAttribute('data-explanation', explanation);
@@ -634,19 +640,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
         
         updateLastUpdated(data.timestamp);
     }
-
-    function calculateTotalPnl(book) {
-        if (book.children && Object.keys(book.children).length > 0) {
-            return Object.values(book.children).reduce((total, child) => total + calculateTotalPnl(child), 0);
-        } else {
-            return Object.values(book.pnl).reduce((total, pnl) => total + (pnl || 0), 0);
-        }
-    }
-
-    function getTotalCellClass(totalPnl) {
-        return totalPnl > 0 ? 'positive' : totalPnl < 0 ? 'negative' : '';
-    }
-
 
 });
 
