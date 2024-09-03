@@ -222,30 +222,36 @@ document.addEventListener('DOMContentLoaded', (event) => {
     function renderPnLTable() {
         const todayData = preprocessPnLData(pnlData.todays_pnl);
         console.log("Today's data:", todayData);
-        const bookHierarchy = createBookHierarchy(todayData);
-        const tableBody = document.getElementById('tableBody');
-        
-        if (!tableBody) {
-            console.error('Table body element not found');
-            return;
-        }
-        
-        tableBody.innerHTML = '';
-    
-        // Add Global Total row
-        const globalTotal = calculateGlobalTotal(bookHierarchy);
-        const globalTotalRow = createGlobalTotalRow(globalTotal);
-        tableBody.appendChild(globalTotalRow);
-    
-        // Define the desired order of top-level books
-        const bookOrder = ['G10', 'EM', 'PM', 'Onshore', 'Inventory'];
-    
-        // Render books in the specified order
-        bookOrder.forEach(bookName => {
-            if (bookHierarchy[bookName]) {
-                renderBookRow(bookHierarchy[bookName]);
+
+        if (Object.keys(todayData).length === 0) {
+            initializeEmptyTable();
+        } else {
+
+            const bookHierarchy = createBookHierarchy(todayData);
+            const tableBody = document.getElementById('tableBody');
+            
+            if (!tableBody) {
+                console.error('Table body element not found');
+                return;
             }
-        });
+            
+            tableBody.innerHTML = '';
+        
+            // Add Global Total row
+            const globalTotal = calculateGlobalTotal(bookHierarchy);
+            const globalTotalRow = createGlobalTotalRow(globalTotal);
+            tableBody.appendChild(globalTotalRow);
+        
+            // Define the desired order of top-level books
+            const bookOrder = ['G10', 'EM', 'PM', 'Onshore', 'Inventory'];
+        
+            // Render books in the specified order
+            bookOrder.forEach(bookName => {
+                if (bookHierarchy[bookName]) {
+                    renderBookRow(bookHierarchy[bookName]);
+                }
+            });
+        }
     
         addRowGroupToggle();
         highlightMissingInputs();
@@ -268,7 +274,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
             <div class="cell book-cell">Global Total</div>
             ${globalTotal.map(pnl => `
                 <div class="cell ${pnl > 0 ? 'positive' : pnl < 0 ? 'negative' : ''}">
-                    ${pnl.toFixed(2)}
+                    ${formatLargeNumber(pnl)}
                 </div>
             `).join('')}
         `;
@@ -340,34 +346,121 @@ document.addEventListener('DOMContentLoaded', (event) => {
         }
     }
 
-    function updateTableWithNewData(newData) {
-        const bookParts = newData.book.split('/');
+    function updateTableWithNewData(formData) {
+        const { book, session, pnl } = formData;
+        const bookParts = book.split('/');
         const rows = document.querySelectorAll('.book-row');
+        
+        let updatedCell = null;
         
         rows.forEach(row => {
             const level = parseInt(row.getAttribute('data-level'));
             const bookCell = row.querySelector('.book-cell');
             const bookName = bookCell.textContent.trim();
             
-            if (bookName === bookParts[level]) {
+            if (bookParts.slice(0, level + 1).join('/') === bookName) {
                 const cells = row.querySelectorAll('.cell');
-                const sessionIndex = ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].indexOf(newData.session);
+                const sessionIndex = ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].indexOf(session);
                 
                 if (sessionIndex !== -1) {
                     const cell = cells[sessionIndex + 1];
-                    cell.textContent = newData.pnl.toFixed(2);
+                    const oldPnl = parseFloat(cell.textContent.replace(/[KMB]/g, '')) || 0;
+                    const newPnl = parseFloat(pnl);
+                    const difference = newPnl - oldPnl;
+                    
+                    cell.textContent = formatLargeNumber(newPnl);
                     cell.classList.remove('missing');
                     cell.classList.add('updated');
                     
                     setTimeout(() => {
                         cell.classList.remove('updated');
                     }, 2000);
+                    
+                    updatedCell = cell;
+                    
+                    // Update parent cells
+                    let parentRow = row;
+                    while (parentRow && parseInt(parentRow.getAttribute('data-level')) > 0) {
+                        parentRow = parentRow.previousElementSibling;
+                        if (parentRow) {
+                            const parentCell = parentRow.querySelectorAll('.cell')[sessionIndex + 1];
+                            const parentPnl = parseFloat(parentCell.textContent.replace(/[KMB]/g, '')) || 0;
+                            parentCell.textContent = formatLargeNumber(parentPnl + difference);
+                        }
+                    }
                 }
             }
         });
         
+        if (updatedCell) {
+            updateGlobalTotal();
+        }
+        
         highlightMissingInputs();
         addTooltips();
+    }
+
+    function updateGlobalTotal() {
+        const globalTotalRow = document.querySelector('.global-total');
+        if (globalTotalRow) {
+            const cells = globalTotalRow.querySelectorAll('.cell');
+            ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].forEach((session, index) => {
+                let total = 0;
+                document.querySelectorAll('.book-row[data-level="0"]').forEach(row => {
+                    const cell = row.querySelectorAll('.cell')[index + 1];
+                    total += parseFloat(cell.textContent) || 0;
+                });
+                cells[index + 1].textContent = total.toFixed(2);
+            });
+        }
+    }
+
+    function initializeEmptyTable() {
+        const tableBody = document.getElementById('tableBody');
+        tableBody.innerHTML = '';
+    
+        function renderEmptyBookRow(bookName, level = 0) {
+            const row = document.createElement('div');
+            row.className = 'table-row book-row';
+            row.setAttribute('data-level', level);
+            row.setAttribute('data-book', bookName);
+    
+            const indentation = '&nbsp;'.repeat(level * 4);
+            row.innerHTML = `
+                <div class="cell book-cell">${indentation}${bookName}</div>
+                ${['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(() => `
+                    <div class="cell missing">-</div>
+                `).join('')}
+            `;
+    
+            tableBody.appendChild(row);
+        }
+    
+        // Render empty rows for all books in the hierarchy
+        function renderEmptyHierarchy(hierarchy, level = 0) {
+            Object.entries(hierarchy).forEach(([bookName, subBooks]) => {
+                renderEmptyBookRow(bookName, level);
+                if (Object.keys(subBooks).length > 0) {
+                    renderEmptyHierarchy(subBooks, level + 1);
+                }
+            });
+        }
+    
+        renderEmptyHierarchy(book_structure);
+    
+        // Add Global Total row
+        const globalTotalRow = document.createElement('div');
+        globalTotalRow.className = 'table-row book-row global-total';
+        globalTotalRow.innerHTML = `
+            <div class="cell book-cell">Global Total</div>
+            ${['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(() => `
+                <div class="cell">0.00</div>
+            `).join('')}
+        `;
+        tableBody.appendChild(globalTotalRow);
+    
+        addRowGroupToggle();
+        highlightMissingInputs();
     }
 
     function createBookHierarchy(data) {
@@ -418,7 +511,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
             { name: 'NEW YORK', start: 16, end: 22 },
             { name: 'EOD', start: 22, end: 4 }
         ];
-
+    
         const currentSession = sessions.find(session => {
             const currentHour = now.getUTCHours();
             if (session.start < session.end) {
@@ -427,16 +520,23 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 return currentHour >= session.start || currentHour < session.end;
             }
         });
-
+    
         if (currentSession) {
-            document.querySelectorAll('.missing').forEach(cell => {
+            document.querySelectorAll('.cell:not(.book-cell)').forEach(cell => {
                 const cellIndex = Array.from(cell.parentNode.children).indexOf(cell);
-                if (sessions.findIndex(s => s.name === currentSession.name) < cellIndex - 1) {
-                    cell.classList.add('warning');
+                const sessionIndex = cellIndex - 1; // Subtract 1 because the first cell is the book name
+    
+                if (sessions.findIndex(s => s.name === currentSession.name) > sessionIndex) {
+                    if (cell.textContent.trim() === '-' || cell.classList.contains('missing')) {
+                        cell.classList.add('warning');
+                    } else {
+                        cell.classList.remove('warning');
+                    }
                 }
             });
         }
     }
+    
 
     function startSessionCheck() {
         setInterval(highlightMissingInputs, 60000); // Check every minute
