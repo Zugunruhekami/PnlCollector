@@ -783,3 +783,31 @@ body.dark-mode {
   border-radius: 4px;
   pointer-events: none;
 }
+
+
+.previous-eod {
+  background-color: rgba(255, 255, 0, 0.2);
+}
+
+#toggleEOD {
+  padding: 10px 15px;
+  margin-bottom: 10px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+#toggleEOD:hover {
+  background-color: #45a049;
+}
+
+#toggleEOD.showing-previous {
+  background-color: #2196F3;
+}
+
+#toggleEOD.showing-previous:hover {
+  background-color: #0b7dda;
+}

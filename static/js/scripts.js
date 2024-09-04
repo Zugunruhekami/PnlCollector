@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         pnlData = data;
         renderPnLTable();
         startSessionCheck();
+        updateLastUpdated(data.last_updated);
         // Call other functions that use pnlData for charts here
     }).catch(error => {
         console.error('Error fetching PNL data:', error);
@@ -226,11 +227,14 @@ document.addEventListener('DOMContentLoaded', (event) => {
         return processedData;
     }
 
-    function renderPnLTable() {
+    let showingPreviousEOD = true;
+
+    async function renderPnLTable() {
         const todayData = preprocessPnLData(pnlData.todays_pnl);
         console.log("Today's data:", todayData);
-    
+
         if (Object.keys(todayData).length === 0) {
+            console.log("No data for today, initializing empty table");
             initializeEmptyTable();
         } else {
             const bookHierarchy = createBookHierarchy(todayData);
@@ -259,13 +263,74 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     console.warn(`Book "${bookName}" not found in hierarchy`);
                 }
             });
+
+            // Fetch and display previous day's EOD data
+            console.log("Fetching previous day EOD data");
+            const previousDayEOD = await fetchPreviousDayEOD();
+            console.log("Previous day EOD data:", previousDayEOD);
+            updateEODData(previousDayEOD, todayData);
         }
-    
+
         addRowGroupToggle();
         highlightMissingInputs();
         applyFilters();
         addTooltips();
     }
+
+    function updateEODData(previousDayEOD, todayData) {
+        console.log("Updating EOD data");
+        console.log("Previous day EOD:", previousDayEOD);
+        console.log("Today's data:", todayData);
+    
+        const rows = document.querySelectorAll('.book-row');
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('.cell');
+            const eodCell = cells[cells.length - 1];
+            const book = row.getAttribute('data-book');
+            const previousEOD = previousDayEOD[book];
+            const todayEOD = todayData[book] && todayData[book]['EOD'] ? todayData[book]['EOD'] : null;
+    
+            console.log(`Book: ${book}, Previous EOD: ${previousEOD}, Today's EOD: ${todayEOD}`);
+    
+            eodCell.setAttribute('data-previous-eod', previousEOD !== undefined ? previousEOD : '');
+            eodCell.setAttribute('data-today-eod', todayEOD !== null ? todayEOD : '');
+    
+            updateEODCell(eodCell, previousEOD, todayEOD);
+        });
+    
+        updateToggleButton();
+    }
+
+    function updateEODCell(cell, previousEOD, todayEOD) {
+        if (showingPreviousEOD) {
+            if (previousEOD !== undefined && previousEOD !== null) {
+                cell.textContent = formatLargeNumber(previousEOD);
+                cell.classList.add('previous-eod');
+            } else {
+                cell.textContent = '-';
+                cell.classList.remove('previous-eod');
+            }
+        } else {
+            if (todayEOD !== null && todayEOD !== undefined) {
+                cell.textContent = formatLargeNumber(todayEOD);
+                cell.classList.remove('previous-eod');
+            } else {
+                cell.textContent = '-';
+                cell.classList.remove('previous-eod');
+            }
+        }
+    }
+
+    function updateToggleButton() {
+        const toggleButton = document.getElementById('toggleEOD');
+        if (!toggleButton) {
+            console.error("Toggle button not found");
+            return;
+        }
+        toggleButton.textContent = showingPreviousEOD ? 'Show Today\'s EOD' : 'Show Previous Day EOD';
+        toggleButton.classList.toggle('showing-previous', showingPreviousEOD);
+    }
+
     
 
     function calculateGlobalTotal(bookHierarchy) {
@@ -597,31 +662,29 @@ document.addEventListener('DOMContentLoaded', (event) => {
             { name: 'EOD', start: 22, end: 4 }
         ];
     
-        const currentSession = sessions.find(session => {
-            const currentHour = now.getUTCHours();
-            if (session.start < session.end) {
-                return currentHour >= session.start && currentHour < session.end;
-            } else {
-                return currentHour >= session.start || currentHour < session.end;
-            }
-        });
+        const currentHour = now.getUTCHours();
+        let currentSessionIndex = sessions.findIndex(session => 
+            (session.start < session.end && currentHour >= session.start && currentHour < session.end) ||
+            (session.start > session.end && (currentHour >= session.start || currentHour < session.end))
+        );
     
-        if (currentSession) {
-            document.querySelectorAll('.cell:not(.book-cell)').forEach(cell => {
-                const cellIndex = Array.from(cell.parentNode.children).indexOf(cell);
-                const sessionIndex = cellIndex - 1; // Subtract 1 because the first cell is the book name
+        if (currentSessionIndex === -1) currentSessionIndex = 0; // Default to ASIA if no current session
     
-                if (sessions.findIndex(s => s.name === currentSession.name) > sessionIndex) {
+        document.querySelectorAll('.book-row').forEach(row => {
+            const cells = row.querySelectorAll('.cell:not(.book-cell)');
+            cells.forEach((cell, index) => {
+                if (index <= currentSessionIndex) {
                     if (cell.textContent.trim() === '-' || cell.classList.contains('missing')) {
                         cell.classList.add('warning');
                     } else {
                         cell.classList.remove('warning');
                     }
+                } else {
+                    cell.classList.remove('warning');
                 }
             });
-        }
+        });
     }
-    
 
     function startSessionCheck() {
         setInterval(highlightMissingInputs, 60000); // Check every minute
@@ -673,6 +736,60 @@ async function fetchPnLData() {
     const response = await fetch('/get_pnl_data');
     return await response.json();
 }
+
+async function fetchPreviousDayEOD() {
+    const response = await fetch('/get_previous_day_eod');
+    const data = await response.json();
+    return data.previous_day_eod;
+}
+
+function toggleEODDisplay() {
+    console.log("Toggling EOD display");
+    showingPreviousEOD = !showingPreviousEOD;
+    const eodCells = document.querySelectorAll('.book-row .cell:last-child');
+
+    eodCells.forEach(cell => {
+        const previousEOD = cell.getAttribute('data-previous-eod');
+        const todayEOD = cell.getAttribute('data-today-eod');
+
+        console.log(`Cell - Previous EOD: ${previousEOD}, Today's EOD: ${todayEOD}`);
+
+        if (showingPreviousEOD) {
+            if (previousEOD && previousEOD !== '') {
+                cell.textContent = formatLargeNumber(parseFloat(previousEOD));
+                cell.classList.add('previous-eod');
+            } else {
+                cell.textContent = '-';
+                cell.classList.remove('previous-eod');
+            }
+        } else {
+            if (todayEOD && todayEOD !== '') {
+                cell.textContent = formatLargeNumber(parseFloat(todayEOD));
+                cell.classList.remove('previous-eod');
+            } else {
+                cell.textContent = '-';
+                cell.classList.remove('previous-eod');
+            }
+        }
+    });
+
+    updateToggleButton();
+}
+
+// Make sure this event listener is properly set
+
+document.addEventListener('DOMContentLoaded', () => {
+    const toggleButton = document.getElementById('toggleEOD');
+    if (toggleButton) {
+        toggleButton.addEventListener('click', toggleEODDisplay);
+        updateToggleButton(); // Initialize the button text
+    } else {
+        console.error("Toggle button not found in the DOM");
+    }
+
+    // Call the main initialization function
+    initializePNLCollector();
+});
 
 // Add event listeners for filters
 document.getElementById('bookFilter').addEventListener('change', applyFilters);

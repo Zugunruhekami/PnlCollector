@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import os
 import json
@@ -206,16 +206,42 @@ async def get_pnl_data():
     #     'worst_performing_session': df.groupby('session')['pnl'].sum().idxmin(),
     # }
 
+    last_updated = df['timestamp'].max()
+
     return JSONResponse(content={
         "todays_pnl": todays_pnl_dict,
         "cumulative_pnl": cumulative_pnl_dict,
         "daily_session_pnl": daily_session_pnl_dict,
+        "last_updated": last_updated.isoformat(),
+
         # "heatmap_data": heatmap_data_dict,
         # "monthly_book_pnl": monthly_book_pnl_dict,
         # "book_stats": book_stats_dict,
         # "overall_stats": overall_stats,
     }
 )
+
+
+@app.get("/get_previous_day_eod")
+async def get_previous_day_eod():
+    df = pd.read_csv(CSV_FILE)
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df['date'] = df['timestamp'].dt.date
+
+    today = datetime.now().date()
+    yesterday = today - timedelta(days=1)
+
+    previous_day_eod = df[(df['date'] == yesterday) & (df['session'] == 'EOD')].groupby('book')['pnl'].last().to_dict()
+
+    # If there's no data for yesterday, try the day before
+    if not previous_day_eod:
+        day_before_yesterday = yesterday - timedelta(days=1)
+        previous_day_eod = df[(df['date'] == day_before_yesterday) & (df['session'] == 'EOD')].groupby('book')['pnl'].last().to_dict()
+
+    return JSONResponse(content={
+        "previous_day_eod": previous_day_eod,
+        "date": str(yesterday if previous_day_eod else day_before_yesterday)
+    })
 
 def is_unusual_pnl(book: str, pnl: float) -> bool:
     df = pd.read_csv(CSV_FILE)
