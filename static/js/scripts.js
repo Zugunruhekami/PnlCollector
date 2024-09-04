@@ -1,6 +1,6 @@
 // Global variables
 let pnlData = [];
-let showingPreviousEOD = true;
+let showingPreviousEOD = false;
 let message;
 let loading;
 
@@ -108,6 +108,17 @@ async function renderPnLTable() {
         console.log("No data for today, initializing empty table");
         initializeEmptyTable();
     } else {
+
+        // Modify the renderPnLTable function to include the EOD indicator in the header:
+
+        const tableHeader = document.querySelector('.table-header');
+        if (tableHeader) {
+            const eodHeaderCell = tableHeader.querySelector('.header-cell:last-child');
+            if (eodHeaderCell) {
+                eodHeaderCell.innerHTML = `EOD <span id="eodIndicator">(Today)</span>`;
+            }
+        }
+
         const bookHierarchy = createBookHierarchy(todayData);
         const tableBody = document.getElementById('tableBody');
         
@@ -500,6 +511,15 @@ function initializeEmptyTable() {
         return;
     }
 
+    // Update the initializeEmptyTable function to include the EOD indicator:
+
+    const tableHeader = document.querySelector('.table-header');
+    if (tableHeader) {
+        const eodHeaderCell = tableHeader.querySelector('.header-cell:last-child');
+        if (eodHeaderCell) {
+            eodHeaderCell.innerHTML = `EOD <span id="eodIndicator">(Today)</span>`;
+        }
+    }
     const tableBody = document.getElementById('tableBody');
     tableBody.innerHTML = '';
 
@@ -656,6 +676,7 @@ function toggleEODDisplay() {
     console.log("Toggling EOD display");
     showingPreviousEOD = !showingPreviousEOD;
     const eodCells = document.querySelectorAll('.book-row .cell:last-child');
+    const eodHeader = document.querySelector('.table-header .header-cell:last-child');
 
     eodCells.forEach(cell => {
         const previousEOD = parseFloat(cell.getAttribute('data-previous-eod'));
@@ -665,6 +686,11 @@ function toggleEODDisplay() {
 
         updateEODCell(cell, previousEOD, todayEOD);
     });
+
+    // Update the EOD header
+    if (eodHeader) {
+        eodHeader.innerHTML = `EOD <span id="eodIndicator">${showingPreviousEOD ? '(T-1)' : '(Today)'}</span>`;
+    }
 
     updateToggleButton();
 }
