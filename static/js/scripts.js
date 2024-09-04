@@ -47,7 +47,6 @@ function initializePNLCollector() {
 
     
 
-
 async function isUnusualPNL(pnl, book) {
     try {
         const response = await fetch(`/check_unusual_pnl?book=${encodeURIComponent(book)}&pnl=${pnl}`);
@@ -62,8 +61,6 @@ async function isUnusualPNL(pnl, book) {
         return Math.abs(pnl) > 1000000;
     }
 }
-
-
 
 
 function showExplanationField() {
@@ -130,13 +127,17 @@ async function renderPnLTable() {
         const bookOrder = ['G10', 'EM', 'PM', 'Onshore', 'Inventory'];
     
         // Render books in the specified order
-        bookOrder.forEach(bookName => {
+        const renderPromises = bookOrder.map(bookName => {
             if (bookHierarchy[bookName]) {
-                renderBookRow(bookHierarchy[bookName]);
+                return renderBookRow(bookHierarchy[bookName]);
             } else {
                 console.warn(`Book "${bookName}" not found in hierarchy`);
+                return Promise.resolve();
             }
         });
+
+        // Wait for all book rows to be rendered
+        await Promise.all(renderPromises);
 
         // Fetch and display previous day's EOD data
         console.log("Fetching previous day EOD data");
@@ -148,7 +149,7 @@ async function renderPnLTable() {
     addRowGroupToggle();
     highlightMissingInputs();
     applyFilters();
-    addTooltips();
+    addTooltips();  // Add this back if you want to add all tooltips at once
 }
 
 function updateEODData(previousDayEOD, todayData) {
@@ -202,8 +203,9 @@ function updateEODData(previousDayEOD, todayData) {
     updateToggleButton();
 }
 
-function updateEODCell(cell, previousEOD, todayEOD) {
-    cell.classList.remove('positive', 'negative', 'missing', 'previous-eod');
+
+async function updateEODCell(cell, previousEOD, todayEOD) {
+    cell.classList.remove('positive', 'negative', 'missing', 'previous-eod', 'unusual-pnl');
 
     let valueToShow;
     if (showingPreviousEOD) {
@@ -221,6 +223,11 @@ function updateEODCell(cell, previousEOD, todayEOD) {
             cell.classList.add('positive');
         } else if (valueToShow < 0) {
             cell.classList.add('negative');
+        }
+        const book = cell.closest('.book-row').getAttribute('data-book');
+        const isUnusual = await isUnusualPNL(valueToShow, book);
+        if (isUnusual) {
+            cell.classList.add('unusual-pnl');
         }
     } else {
         cell.textContent = '-';
@@ -282,12 +289,17 @@ function renderBookRow(book, level = 0, parentName = '') {
 
     const indentation = '&nbsp;'.repeat(level * 4);
     const displayName = level === 0 ? book.name : book.name.split('/').pop();
-    row.innerHTML = `
-        <div class="cell book-cell">${indentation}${displayName}</div>
-        ${renderPnLCells(book)}
-    `;
-
+    
+    // Render book cell immediately
+    row.innerHTML = `<div class="cell book-cell">${indentation}${displayName}</div>`;
     tableBody.appendChild(row);
+
+    // Render PNL cells asynchronously
+    renderPnLCells(book).then(cellsHtml => {
+        row.innerHTML += cellsHtml;
+        addTooltips(row);
+    });
+
     if (book.children) {
         Object.values(book.children).forEach(child => 
             renderBookRow(child, level + 1, book.name)
@@ -295,12 +307,14 @@ function renderBookRow(book, level = 0, parentName = '') {
     }
 }
 
-function renderPnLCells(book) {
-    return ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(session => {
+
+async function renderPnLCells(book) {
+    const cells = await Promise.all(['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(async (session) => {
         const pnl = calculateSessionPnl(book, session);
         let cellClass = '';
         if (pnl !== null) {
-            cellClass += Math.abs(pnl) > getStandardDeviation(book) ? 'highlight ' : '';
+            const isUnusual = await isUnusualPNL(pnl, book.name);
+            cellClass += isUnusual ? 'unusual-pnl ' : '';
             cellClass += pnl > 0 ? 'positive ' : pnl < 0 ? 'negative ' : '';
         } else {
             cellClass = 'missing ';
@@ -309,17 +323,31 @@ function renderPnLCells(book) {
         if (explanation) {
             cellClass += 'has-explanation ';
         }
-        return `<div class="cell ${cellClass.trim()}" data-explanation="${explanation}">${pnl !== null ? formatLargeNumber(pnl) : '-'}</div>`;
-    }).join('');
+        return `<div class="cell ${cellClass.trim()}" data-explanation="${explanation}" data-pnl="${pnl}">${pnl !== null ? formatLargeNumber(pnl) : '-'}</div>`;
+    }));
+    
+    return cells.join('');
 }
 
-function addTooltips() {
-    document.querySelectorAll('.cell[data-explanation]').forEach(cell => {
+function addTooltips(row) {
+    row.querySelectorAll('.cell[data-explanation], .cell.unusual-pnl').forEach(cell => {
         const explanation = cell.getAttribute('data-explanation');
+        const pnl = cell.getAttribute('data-pnl');
+        let content = '';
+
+        if (cell.classList.contains('unusual-pnl')) {
+            content += '<strong>Unusual PNL detected!</strong><br>';
+        }
+
         if (explanation) {
-            cell.classList.add('has-explanation');
+            content += `<strong>Explanation:</strong> ${explanation}`;
+        } else if (cell.classList.contains('unusual-pnl')) {
+            content += 'No explanation provided for this unusual PNL.';
+        }
+
+        if (content) {
             tippy(cell, {
-                content: explanation,
+                content: content,
                 arrow: true,
                 placement: 'top',
                 theme: 'light',
@@ -328,6 +356,7 @@ function addTooltips() {
         }
     });
 }
+
 
 function calculateSessionPnl(book, session) {
     if (!book) return null;
@@ -562,6 +591,8 @@ function addRowGroupToggle() {
     });
 }
 
+
+
 function highlightMissingInputs() {
     const now = new Date();
     const sessions = [
@@ -580,6 +611,7 @@ function highlightMissingInputs() {
     if (currentSessionIndex === -1) currentSessionIndex = 0; // Default to ASIA if no current session
 
     document.querySelectorAll('.book-row').forEach(row => {
+        if (row.getAttribute('data-level') === '0') return; // Skip parent book rows
         const cells = row.querySelectorAll('.cell:not(.book-cell)');
         cells.forEach((cell, index) => {
             if (index <= currentSessionIndex) {

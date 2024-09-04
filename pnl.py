@@ -128,10 +128,11 @@ async def submit_pnl(pnl_data: PNLData):
     
     return {"message": "PNL submitted successfully", "timestamp": formatted_datetime}
 
-
 @app.get("/check_unusual_pnl")
 async def check_unusual_pnl(book: str, pnl: float):
-    return {"is_unusual": is_unusual_pnl(book, pnl)}
+    is_unusual = is_unusual_pnl(book, pnl)
+    return {"is_unusual": bool(is_unusual)}  # Convert numpy.bool_ to Python bool
+
 
 @app.get("/visualization", response_class=HTMLResponse)
 async def visualization(request: Request):
@@ -259,11 +260,13 @@ def is_unusual_pnl(book: str, pnl: float) -> bool:
     
     mean = book_data['pnl'].mean()
     std = book_data['pnl'].std()
+    
+    if std == 0:  # Avoid division by zero
+        return bool(abs(pnl - mean) > 1000000)
+    
     z_score = (pnl - mean) / std
     
-    return abs(z_score) > 3 or abs(pnl) > 1000000  # Combine both conditions
-
-    
+    return bool(abs(z_score) > 3 and abs(pnl) > 1000000)  # Combine both conditions
 
 if __name__ == '__main__':
     import uvicorn
