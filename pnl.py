@@ -138,7 +138,6 @@ async def visualization(request: Request):
     return templates.TemplateResponse("visualization.html", {"request": request})
 
 
-
 @app.get("/get_pnl_data")
 async def get_pnl_data():
     df = pd.read_csv(CSV_FILE)
@@ -231,16 +230,24 @@ async def get_previous_day_eod():
     today = datetime.now().date()
     yesterday = today - timedelta(days=1)
 
-    previous_day_eod = df[(df['date'] == yesterday) & (df['session'] == 'EOD')].groupby('book')['pnl'].last().to_dict()
+    # Filter yesterday's data and get the latest entry for each book
+    yesterday_df = df[(df['date'] == yesterday) & (df['session'] == 'EOD')].sort_values('timestamp')
+    yesterday_df = yesterday_df.groupby('book').last().reset_index()
 
-    # If there's no data for yesterday, try the day before
-    if not previous_day_eod:
-        day_before_yesterday = yesterday - timedelta(days=1)
-        previous_day_eod = df[(df['date'] == day_before_yesterday) & (df['session'] == 'EOD')].groupby('book')['pnl'].last().to_dict()
+    # Create previous day's EOD data
+    previous_day_eod_dict = {}
+    for _, row in yesterday_df.iterrows():
+        previous_day_eod_dict[row['book']] = {
+            'EOD': row['pnl'],
+            'explanations': {'EOD': row['explanation']} if pd.notna(row['explanation']) else {}
+        }
+
+    last_updated = yesterday_df['timestamp'].max()
 
     return JSONResponse(content={
-        "previous_day_eod": previous_day_eod,
-        "date": str(yesterday if previous_day_eod else day_before_yesterday)
+        "previous_day_eod": previous_day_eod_dict,
+        "date": str(yesterday),
+        "last_updated": last_updated.isoformat() if last_updated else None
     })
 
 def is_unusual_pnl(book: str, pnl: float) -> bool:

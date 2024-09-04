@@ -74,12 +74,6 @@ function hideExplanationField() {
     document.getElementById('explanationGroup').style.display = 'none';
 }
 
-function isUnusualPNL(pnl, book) {
-    // Implement your logic here. For example:
-    const threshold = 1000000; // 1 million
-    return Math.abs(pnl) > threshold;
-}
-
 function showMessage(type, text) {
     if (message) {
         message.innerHTML = `<p class="${type}">${text}</p>`;
@@ -96,11 +90,18 @@ function showMessage(type, text) {
 function preprocessPnLData(data) {
     const processedData = {};
     for (const [book, sessions] of Object.entries(data)) {
-        processedData[book] = sessions;
+        if (typeof sessions === 'object' && sessions !== null) {
+            if ('EOD' in sessions) {
+                processedData[book] = sessions;
+            } else {
+                processedData[book] = { EOD: sessions };
+            }
+        } else {
+            processedData[book] = { EOD: sessions };
+        }
     }
     return processedData;
 }
-
 
 async function renderPnLTable() {
     const todayData = preprocessPnLData(pnlData.todays_pnl);
@@ -156,23 +157,73 @@ function updateEODData(previousDayEOD, todayData) {
     console.log("Today's data:", todayData);
 
     const rows = document.querySelectorAll('.book-row');
+
     rows.forEach(row => {
+        const level = parseInt(row.getAttribute('data-level') || '0');
+        const book = row.getAttribute('data-book');
+        
+        if (!book) {
+            console.warn('Book attribute is missing for row:', row);
+            return;
+        }
+
         const cells = row.querySelectorAll('.cell');
         const eodCell = cells[cells.length - 1];
-        const book = row.getAttribute('data-book');
-        const previousEOD = previousDayEOD[book];
-        const todayEOD = todayData[book] && todayData[book]['EOD'] ? todayData[book]['EOD'] : null;
+
+        let previousEOD, todayEOD;
+
+        if (row.classList.contains('global-total')) {
+            // Handle Global Total row
+            previousEOD = Object.values(previousDayEOD).reduce((sum, value) => sum + (value.EOD || 0), 0);
+            todayEOD = Object.values(todayData).reduce((sum, value) => sum + (value.EOD || 0), 0);
+        } else if (level === 0) {
+            // Parent book
+            previousEOD = Object.entries(previousDayEOD)
+                .filter(([key]) => key.startsWith(book + '/'))
+                .reduce((sum, [, value]) => sum + (value.EOD || 0), 0);
+            todayEOD = Object.entries(todayData)
+                .filter(([key]) => key.startsWith(book + '/'))
+                .reduce((sum, [, value]) => sum + (value.EOD || 0), 0);
+        } else {
+            // Sub-book
+            const fullBookName = book;
+            previousEOD = previousDayEOD[fullBookName] && previousDayEOD[fullBookName].EOD !== undefined ? previousDayEOD[fullBookName].EOD : null;
+            todayEOD = todayData[fullBookName] && todayData[fullBookName].EOD !== undefined ? todayData[fullBookName].EOD : null;
+        }
 
         console.log(`Book: ${book}, Previous EOD: ${previousEOD}, Today's EOD: ${todayEOD}`);
 
-        eodCell.setAttribute('data-previous-eod', previousEOD !== undefined ? previousEOD : '');
-        eodCell.setAttribute('data-today-eod', todayEOD !== null ? todayEOD : '');
+        eodCell.setAttribute('data-previous-eod', previousEOD !== null ? previousEOD.toString() : '');
+        eodCell.setAttribute('data-today-eod', todayEOD !== null ? todayEOD.toString() : '');
 
         updateEODCell(eodCell, previousEOD, todayEOD);
     });
 
     updateToggleButton();
 }
+
+
+// function updateGlobalTotalEOD(rows) {
+//     const globalTotalRow = Array.from(rows).find(row => row.classList.contains('global-total'));
+//     if (!globalTotalRow) return;
+
+//     const globalEodCell = globalTotalRow.querySelectorAll('.cell')[4]; // EOD is the 5th cell
+//     let globalPreviousEOD = 0;
+//     let globalTodayEOD = 0;
+
+//     rows.forEach(row => {
+//         if (row.getAttribute('data-level') === '0' && !row.classList.contains('global-total')) {
+//             const eodCell = row.querySelectorAll('.cell')[4];
+//             globalPreviousEOD += parseFloat(eodCell.getAttribute('data-previous-eod') || 0);
+//             globalTodayEOD += parseFloat(eodCell.getAttribute('data-today-eod') || 0);
+//         }
+//     });
+
+//     globalEodCell.setAttribute('data-previous-eod', globalPreviousEOD.toString());
+//     globalEodCell.setAttribute('data-today-eod', globalTodayEOD.toString());
+
+//     updateEODCell(globalEodCell, globalPreviousEOD, globalTodayEOD);
+// }
 
 function updateEODCell(cell, previousEOD, todayEOD) {
     if (showingPreviousEOD) {
@@ -244,7 +295,7 @@ function renderBookRow(book, level = 0, parentName = '') {
     const row = document.createElement('div');
     row.className = 'table-row book-row';
     row.setAttribute('data-level', level);
-    row.setAttribute('data-book', book.name);
+    row.setAttribute('data-book', level === 0 ? book.name : `${parentName}/${book.name}`);
 
     const indentation = '&nbsp;'.repeat(level * 4);
     const displayName = level === 0 ? book.name : book.name.split('/').pop();
@@ -296,13 +347,14 @@ function addTooltips() {
 }
 
 function calculateSessionPnl(book, session) {
+    if (!book) return null;
     if (book.children && Object.keys(book.children).length > 0) {
         return Object.values(book.children).reduce((total, child) => {
             const childPnl = calculateSessionPnl(child, session);
             return total + (childPnl !== null ? childPnl : 0);
         }, 0);
     } else {
-        return book.pnl[session] !== undefined ? book.pnl[session] : null;
+        return book.pnl && book.pnl[session] !== undefined ? book.pnl[session] : null;
     }
 }
 
@@ -497,8 +549,9 @@ function createBookHierarchy(data) {
             }
             if (index === parts.length - 1) {
                 current[part].pnl = pnlData;
+            } else {
+                current = current[part].children;
             }
-            current = current[part].children;
         });
     });
     return hierarchy;
@@ -580,13 +633,14 @@ async function fetchPnLData() {
 async function fetchPreviousDayEOD() {
     const response = await fetch('/get_previous_day_eod');
     const data = await response.json();
-    return data.previous_day_eod;
+    console.log("Previous day EOD data from server:", data);
+    return preprocessPnLData(data.previous_day_eod);
 }
 
 function toggleEODDisplay() {
     console.log("Toggling EOD display");
     showingPreviousEOD = !showingPreviousEOD;
-    const eodCells = document.querySelectorAll('.book-row .cell:last-child');
+    const eodCells = document.querySelectorAll('.book-row:not(.global-total) .cell:last-child');
 
     eodCells.forEach(cell => {
         const previousEOD = cell.getAttribute('data-previous-eod');
