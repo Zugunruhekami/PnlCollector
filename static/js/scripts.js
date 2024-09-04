@@ -218,15 +218,7 @@ function updateEODData(previousDayEOD, todayData) {
 async function updateEODCell(cell, previousEOD, todayEOD) {
     cell.classList.remove('positive', 'negative', 'missing', 'previous-eod', 'unusual-pnl');
 
-    let valueToShow;
-    if (showingPreviousEOD) {
-        valueToShow = previousEOD;
-        if (previousEOD !== undefined && previousEOD !== null) {
-            cell.classList.add('previous-eod');
-        }
-    } else {
-        valueToShow = todayEOD;
-    }
+    let valueToShow = showingPreviousEOD ? previousEOD : todayEOD;
 
     if (valueToShow !== undefined && valueToShow !== null) {
         cell.textContent = formatLargeNumber(valueToShow);
@@ -235,6 +227,11 @@ async function updateEODCell(cell, previousEOD, todayEOD) {
         } else if (valueToShow < 0) {
             cell.classList.add('negative');
         }
+        
+        if (showingPreviousEOD) {
+            cell.classList.add('previous-eod');
+        }
+
         const book = cell.closest('.book-row').getAttribute('data-book');
         const isUnusual = await isUnusualPNL(valueToShow, book);
         if (isUnusual) {
