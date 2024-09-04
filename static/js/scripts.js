@@ -203,28 +203,6 @@ function updateEODData(previousDayEOD, todayData) {
 }
 
 
-// function updateGlobalTotalEOD(rows) {
-//     const globalTotalRow = Array.from(rows).find(row => row.classList.contains('global-total'));
-//     if (!globalTotalRow) return;
-
-//     const globalEodCell = globalTotalRow.querySelectorAll('.cell')[4]; // EOD is the 5th cell
-//     let globalPreviousEOD = 0;
-//     let globalTodayEOD = 0;
-
-//     rows.forEach(row => {
-//         if (row.getAttribute('data-level') === '0' && !row.classList.contains('global-total')) {
-//             const eodCell = row.querySelectorAll('.cell')[4];
-//             globalPreviousEOD += parseFloat(eodCell.getAttribute('data-previous-eod') || 0);
-//             globalTodayEOD += parseFloat(eodCell.getAttribute('data-today-eod') || 0);
-//         }
-//     });
-
-//     globalEodCell.setAttribute('data-previous-eod', globalPreviousEOD.toString());
-//     globalEodCell.setAttribute('data-today-eod', globalTodayEOD.toString());
-
-//     updateEODCell(globalEodCell, globalPreviousEOD, globalTodayEOD);
-// }
-
 function updateEODCell(cell, previousEOD, todayEOD) {
     if (showingPreviousEOD) {
         if (previousEOD !== undefined && previousEOD !== null) {
