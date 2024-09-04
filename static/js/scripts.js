@@ -216,9 +216,10 @@ function updateEODData(previousDayEOD, todayData) {
 
 
 async function updateEODCell(cell, previousEOD, todayEOD) {
-    cell.classList.remove('positive', 'negative', 'missing', 'previous-eod', 'unusual-pnl');
+    cell.classList.remove('positive', 'negative', 'missing', 'previous-eod', 'unusual-pnl', 'has-explanation');
 
     let valueToShow = showingPreviousEOD ? previousEOD : todayEOD;
+    let explanation = cell.getAttribute('data-explanation') || '';
 
     if (valueToShow !== undefined && valueToShow !== null) {
         cell.textContent = formatLargeNumber(valueToShow);
@@ -237,9 +238,22 @@ async function updateEODCell(cell, previousEOD, todayEOD) {
         if (isUnusual) {
             cell.classList.add('unusual-pnl');
         }
+
+        if (explanation) {
+            cell.classList.add('has-explanation');
+        }
     } else {
         cell.textContent = '-';
         cell.classList.add('missing');
+    }
+
+    // Update data attributes
+    cell.setAttribute('data-pnl', valueToShow);
+    cell.setAttribute('data-explanation', explanation);
+
+    // Re-add tooltip
+    if (explanation || cell.classList.contains('unusual-pnl')) {
+        addTooltipToCell(cell);
     }
 }
 
@@ -331,7 +345,7 @@ async function renderPnLCells(book) {
         if (explanation) {
             cellClass += 'has-explanation ';
         }
-        return `<div class="cell ${cellClass.trim()}" data-explanation="${explanation}" data-pnl="${pnl}">${pnl !== null ? formatLargeNumber(pnl) : '-'}</div>`;
+        return `<div class="cell ${cellClass.trim()}" data-explanation="${explanation}" data-pnl="${pnl}" data-session="${session}">${pnl !== null ? formatLargeNumber(pnl) : '-'}</div>`;
     }));
     
     return cells.join('');
@@ -365,6 +379,31 @@ function addTooltips(row) {
     });
 }
 
+function addTooltipToCell(cell) {
+    const explanation = cell.getAttribute('data-explanation');
+    const pnl = cell.getAttribute('data-pnl');
+    let content = '';
+
+    if (cell.classList.contains('unusual-pnl')) {
+        content += '<strong>Unusual PNL detected!</strong><br>';
+    }
+
+    if (explanation) {
+        content += `<strong>Explanation:</strong> ${explanation}`;
+    } else if (cell.classList.contains('unusual-pnl')) {
+        content += 'No explanation provided for this unusual PNL.';
+    }
+
+    if (content) {
+        tippy(cell, {
+            content: content,
+            arrow: true,
+            placement: 'top',
+            theme: 'light',
+            allowHTML: true,
+        });
+    }
+}
 
 function calculateSessionPnl(book, session) {
     if (!book) return null;
