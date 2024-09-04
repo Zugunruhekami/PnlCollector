@@ -162,7 +162,7 @@ function updateEODData(previousDayEOD, todayData) {
         const level = parseInt(row.getAttribute('data-level') || '0');
         const book = row.getAttribute('data-book');
         
-        if (!book) {
+        if (!book && !row.classList.contains('global-total')) {
             console.warn('Book attribute is missing for row:', row);
             return;
         }
@@ -191,7 +191,7 @@ function updateEODData(previousDayEOD, todayData) {
             todayEOD = todayData[fullBookName] && todayData[fullBookName].EOD !== undefined ? todayData[fullBookName].EOD : null;
         }
 
-        console.log(`Book: ${book}, Previous EOD: ${previousEOD}, Today's EOD: ${todayEOD}`);
+        console.log(`Book: ${book || 'Global Total'}, Previous EOD: ${previousEOD}, Today's EOD: ${todayEOD}`);
 
         eodCell.setAttribute('data-previous-eod', previousEOD !== null ? previousEOD.toString() : '');
         eodCell.setAttribute('data-today-eod', todayEOD !== null ? todayEOD.toString() : '');
@@ -202,24 +202,29 @@ function updateEODData(previousDayEOD, todayData) {
     updateToggleButton();
 }
 
-
 function updateEODCell(cell, previousEOD, todayEOD) {
+    cell.classList.remove('positive', 'negative', 'missing', 'previous-eod');
+
+    let valueToShow;
     if (showingPreviousEOD) {
+        valueToShow = previousEOD;
         if (previousEOD !== undefined && previousEOD !== null) {
-            cell.textContent = formatLargeNumber(previousEOD);
             cell.classList.add('previous-eod');
-        } else {
-            cell.textContent = '-';
-            cell.classList.remove('previous-eod');
         }
     } else {
-        if (todayEOD !== null && todayEOD !== undefined) {
-            cell.textContent = formatLargeNumber(todayEOD);
-            cell.classList.remove('previous-eod');
-        } else {
-            cell.textContent = '-';
-            cell.classList.remove('previous-eod');
+        valueToShow = todayEOD;
+    }
+
+    if (valueToShow !== undefined && valueToShow !== null) {
+        cell.textContent = formatLargeNumber(valueToShow);
+        if (valueToShow > 0) {
+            cell.classList.add('positive');
+        } else if (valueToShow < 0) {
+            cell.classList.add('negative');
         }
+    } else {
+        cell.textContent = '-';
+        cell.classList.add('missing');
     }
 }
 
@@ -618,31 +623,15 @@ async function fetchPreviousDayEOD() {
 function toggleEODDisplay() {
     console.log("Toggling EOD display");
     showingPreviousEOD = !showingPreviousEOD;
-    const eodCells = document.querySelectorAll('.book-row:not(.global-total) .cell:last-child');
+    const eodCells = document.querySelectorAll('.book-row .cell:last-child');
 
     eodCells.forEach(cell => {
-        const previousEOD = cell.getAttribute('data-previous-eod');
-        const todayEOD = cell.getAttribute('data-today-eod');
+        const previousEOD = parseFloat(cell.getAttribute('data-previous-eod'));
+        const todayEOD = parseFloat(cell.getAttribute('data-today-eod'));
 
         console.log(`Cell - Previous EOD: ${previousEOD}, Today's EOD: ${todayEOD}`);
 
-        if (showingPreviousEOD) {
-            if (previousEOD && previousEOD !== '') {
-                cell.textContent = formatLargeNumber(parseFloat(previousEOD));
-                cell.classList.add('previous-eod');
-            } else {
-                cell.textContent = '-';
-                cell.classList.remove('previous-eod');
-            }
-        } else {
-            if (todayEOD && todayEOD !== '') {
-                cell.textContent = formatLargeNumber(parseFloat(todayEOD));
-                cell.classList.remove('previous-eod');
-            } else {
-                cell.textContent = '-';
-                cell.classList.remove('previous-eod');
-            }
-        }
+        updateEODCell(cell, previousEOD, todayEOD);
     });
 
     updateToggleButton();
