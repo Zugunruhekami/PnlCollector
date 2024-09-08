@@ -352,7 +352,18 @@ async function renderPnLCells(book) {
 }
 
 function addTooltips(row) {
-    row.querySelectorAll('.cell[data-explanation], .cell.unusual-pnl').forEach(cell => {
+    if (!row) {
+        console.warn('addTooltips called with no row, applying to all rows');
+        row = document.getElementById('tableBody');
+    }
+
+    if (!row) {
+        console.error('Table body not found');
+        return;
+    }
+
+    const cells = row.querySelectorAll('.cell[data-explanation], .cell.unusual-pnl');
+    cells.forEach(cell => {
         const explanation = cell.getAttribute('data-explanation');
         const pnl = cell.getAttribute('data-pnl');
         let content = '';
@@ -422,6 +433,9 @@ function updateTableWithNewData(formData) {
     const bookParts = book.split('/');
     const rows = document.querySelectorAll('.book-row');
     
+    console.log('Updating table with new data:', formData);
+    console.log('Book parts:', bookParts);
+    
     const sessionIndex = ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].indexOf(session);
     
     if (sessionIndex === -1) {
@@ -432,11 +446,13 @@ function updateTableWithNewData(formData) {
     // Update the child book
     const childRow = Array.from(rows).find(row => {
         const rowBook = row.getAttribute('data-book');
-        return rowBook === bookParts[bookParts.length - 1] && 
-                parseInt(row.getAttribute('data-level')) === bookParts.length - 1;
+        const rowLevel = parseInt(row.getAttribute('data-level'));
+        console.log('Checking row:', rowBook, 'Level:', rowLevel);
+        return rowBook === book && rowLevel === bookParts.length - 1;
     });
 
     if (childRow) {
+        console.log('Child row found:', childRow);
         const cell = childRow.querySelectorAll('.cell')[sessionIndex + 1];
         const oldPnl = parseLargeNumber(cell.textContent);
         const newPnl = parseFloat(pnl);
@@ -457,12 +473,20 @@ function updateTableWithNewData(formData) {
         }
 
         updateGlobalTotal();
+
+        // Add tooltips to the updated rows
+        addTooltips(childRow);
+        if (parentRow) addTooltips(parentRow);
     } else {
-        console.error('Child row not found for book:', bookParts[bookParts.length - 1]);
+        console.error('Child row not found for book:', book);
+        console.log('Available rows:', Array.from(rows).map(row => ({
+            book: row.getAttribute('data-book'),
+            level: row.getAttribute('data-level')
+        })));
     }
     
     highlightMissingInputs();
-    addTooltips();
+    // Remove this line: addTooltips();
 }
 
 function updateCell(cell, value, explanation = '') {
