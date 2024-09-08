@@ -103,7 +103,7 @@ async def submit_pnl(pnl_data: PNLData):
             raise HTTPException(status_code=400, detail="PNL value seems unusual. Please provide an explanation.")
     
     current_time = datetime.now()
-    formatted_datetime = current_time.strftime('%Y-%m-%dT%H:%M:%S')
+    formatted_datetime = current_time.strftime('%Y-%m-%d %H:%M:%S')
 
     df = pd.read_csv(CSV_FILE)
     df['timestamp'] = pd.to_datetime(df['timestamp'])
