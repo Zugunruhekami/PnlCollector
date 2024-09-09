@@ -428,14 +428,6 @@ select optgroup option {
   background-color: rgba(255, 255, 255, 0.02);
 }
 
-.book-row[data-level="0"] {
-  font-weight: bold;
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.book-row[data-level="1"] {
-  padding-left: 20px;
-}
 
 .book-row:hover {
   background-color: rgba(255, 255, 255, 0.1);
@@ -533,14 +525,45 @@ select optgroup option {
 }
 
 .global-total {
+  background-color: rgba(59, 130, 246, 0.3);
   font-weight: bold;
-  background-color: #f0f0f0;
   border-bottom: 2px solid #333;
 }
 
 .global-total .cell {
   padding: 10px 5px;
 }
+
+.book-row[data-level="0"] {
+  background-color: rgba(255, 255, 255, 0.15);
+  font-weight: bold;
+}
+
+.global-total {
+  background-color: rgba(59, 130, 246, 0.3);
+  font-weight: bold;
+}
+
+.book-row[data-level="0"] .cell,
+.global-total .cell {
+  color: var(--accent-color);
+}
+
+.book-row[data-level="0"] .cell.unusual-pnl::before,
+.global-total .cell.unusual-pnl::before {
+  background-color: rgba(255, 69, 0, 0.4);
+}
+
+.book-row[data-level="0"] .cell.unusual-pnl::after,
+.global-total .cell.unusual-pnl::after {
+  border-color: rgba(255, 69, 0, 0.6);
+}
+
+
+.book-row[data-level="1"] {
+  padding-left: 20px;
+}
+
 
 .last-updated {
   text-align: right;
@@ -713,15 +736,6 @@ body.dark-mode {
   right: 2px;
   font-size: 0.8em;
   color: var(--accent-color);
-}
-
-.book-row[data-level="0"] {
-  font-weight: bold;
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-.book-row[data-level="1"] {
-  padding-left: 20px;
 }
 
 #explanationGroup {

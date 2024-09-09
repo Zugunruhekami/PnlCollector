@@ -45,7 +45,7 @@ function initializePNLCollector() {
     setUpEODToggle();
 }
 
-    
+
 
 async function isUnusualPNL(pnl, book) {
     try {
@@ -121,22 +121,22 @@ async function renderPnLTable() {
 
         const bookHierarchy = createBookHierarchy(todayData);
         const tableBody = document.getElementById('tableBody');
-        
+
         if (!tableBody) {
             console.error('Table body element not found');
             return;
         }
-        
+
         tableBody.innerHTML = '';
-    
+
         // Add Global Total row
         const globalTotal = calculateGlobalTotal(bookHierarchy);
         const globalTotalRow = createGlobalTotalRow(globalTotal);
         tableBody.appendChild(globalTotalRow);
-    
+
         // Define the desired order of top-level books
         const bookOrder = ['G10', 'EM', 'PM', 'Onshore', 'Inventory'];
-    
+
         // Render books in the specified order
         const renderPromises = bookOrder.map(bookName => {
             if (bookHierarchy[bookName]) {
@@ -173,7 +173,7 @@ function updateEODData(previousDayEOD, todayData) {
     rows.forEach(row => {
         const level = parseInt(row.getAttribute('data-level') || '0');
         const book = row.getAttribute('data-book');
-        
+
         if (!book && !row.classList.contains('global-total')) {
             console.warn('Book attribute is missing for row:', row);
             return;
@@ -228,7 +228,7 @@ async function updateEODCell(cell, previousEOD, todayEOD) {
         } else if (valueToShow < 0) {
             cell.classList.add('negative');
         }
-        
+
         if (showingPreviousEOD) {
             cell.classList.add('previous-eod');
         }
@@ -311,83 +311,93 @@ function renderBookRow(book, level = 0, parentName = '') {
 
     const indentation = '&nbsp;'.repeat(level * 4);
     const displayName = level === 0 ? book.name : book.name.split('/').pop();
-    
+
     // Render book cell immediately
     row.innerHTML = `<div class="cell book-cell">${indentation}${displayName}</div>`;
     tableBody.appendChild(row);
 
     // Render PNL cells asynchronously
-    renderPnLCells(book).then(cellsHtml => {
+    renderPnLCells(book, level).then(cellsHtml => {
         row.innerHTML += cellsHtml;
         addTooltips(row);
     });
 
     if (book.children) {
-        Object.values(book.children).forEach(child => 
+        Object.values(book.children).forEach(child =>
             renderBookRow(child, level + 1, book.name)
         );
     }
 }
 
 
-async function renderPnLCells(book) {
+async function renderPnLCells(book, level) {
     const cells = await Promise.all(['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(async (session) => {
-        const pnl = calculateSessionPnl(book, session);
+        const pnl = level === 0 ? calculateSessionPnl(book, session) : book.pnl[session];
         let cellClass = '';
-        if (pnl !== null) {
+        if (pnl !== null && pnl !== undefined) {
             const isUnusual = await isUnusualPNL(pnl, book.name);
             cellClass += isUnusual ? 'unusual-pnl ' : '';
             cellClass += pnl > 0 ? 'positive ' : pnl < 0 ? 'negative ' : '';
         } else {
             cellClass = 'missing ';
         }
-        const explanation = book.explanations && book.explanations[session] ? book.explanations[session] : '';
+        const explanation = level === 0 ? '' : (book.explanations[session] || '');
         if (explanation) {
             cellClass += 'has-explanation ';
         }
-        return `<div class="cell ${cellClass.trim()}" data-explanation="${explanation}" data-pnl="${pnl}" data-session="${session}">${pnl !== null ? formatLargeNumber(pnl) : '-'}</div>`;
+        return `<div class="cell ${cellClass.trim()}" data-explanation="${explanation}" data-pnl="${pnl}" data-session="${session}">${pnl !== null && pnl !== undefined ? formatLargeNumber(pnl) : '-'}</div>`;
     }));
-    
+
     return cells.join('');
 }
 
-function addTooltips(row) {
-    if (!row) {
-        console.warn('addTooltips called with no row, applying to all rows');
-        row = document.getElementById('tableBody');
-    }
-
-    if (!row) {
-        console.error('Table body not found');
-        return;
-    }
-
-    const cells = row.querySelectorAll('.cell[data-explanation], .cell.unusual-pnl');
-    cells.forEach(cell => {
+function addTooltips(element) {
+    const applyTooltip = (cell) => {
+        const level = parseInt(cell.closest('.book-row').getAttribute('data-level') || '0');
+        const bookName = cell.closest('.book-row').getAttribute('data-book');
+        const isTopLevelBook = ['G10', 'PM', 'EM', 'Onshore', 'Inventory'].includes(bookName);
         const explanation = cell.getAttribute('data-explanation');
-        const pnl = cell.getAttribute('data-pnl');
+        const isUnusual = cell.classList.contains('unusual-pnl');
         let content = '';
 
-        if (cell.classList.contains('unusual-pnl')) {
-            content += '<strong>Unusual PNL detected!</strong><br>';
-        }
+        if (level === 0 && isTopLevelBook) {
+            content = 'Aggregated PNL for sub-books';
+        } else if (level !== 0) {
+            if (isUnusual) {
+                content += '<strong>Unusual PNL detected!</strong><br>';
+            }
 
-        if (explanation) {
-            content += `<strong>Explanation:</strong> ${explanation}`;
-        } else if (cell.classList.contains('unusual-pnl')) {
-            content += 'No explanation provided for this unusual PNL.';
+            if (explanation) {
+                content += `<strong>Explanation:</strong> ${explanation}`;
+            } else if (isUnusual) {
+                content += 'No explanation provided for this unusual PNL.';
+            }
         }
 
         if (content) {
-            tippy(cell, {
-                content: content,
-                arrow: true,
-                placement: 'top',
-                theme: 'light',
-                allowHTML: true,
-            });
+            if (cell._tippy) {
+                cell._tippy.setContent(content);
+            } else {
+                tippy(cell, {
+                    content: content,
+                    arrow: true,
+                    placement: 'top',
+                    theme: level === 0 ? 'light-border' : 'light',
+                    allowHTML: true,
+                });
+            }
+        } else if (cell._tippy) {
+            cell._tippy.destroy();
         }
-    });
+    };
+
+    if (element instanceof Element) {
+        element.querySelectorAll('.cell[data-explanation], .cell.unusual-pnl').forEach(applyTooltip);
+    } else {
+        document.querySelectorAll('.book-row').forEach(row => {
+            row.querySelectorAll('.cell[data-explanation], .cell.unusual-pnl').forEach(applyTooltip);
+        });
+    }
 }
 
 function addTooltipToCell(cell) {
@@ -413,6 +423,12 @@ function addTooltipToCell(cell) {
             theme: 'light',
             allowHTML: true,
         });
+    } else {
+        // Remove tooltip if there's no content
+        const tippyInstance = cell._tippy;
+        if (tippyInstance) {
+            tippyInstance.destroy();
+        }
     }
 }
 
@@ -428,13 +444,11 @@ function calculateSessionPnl(book, session) {
     }
 }
 
-function updateTableWithNewData(formData) {
+async function updateTableWithNewData(formData) {
     const { book, session, pnl, explanation } = formData;
-    const bookParts = book.split('/');
     const rows = document.querySelectorAll('.book-row');
     
     console.log('Updating table with new data:', formData);
-    console.log('Book parts:', bookParts);
     
     const sessionIndex = ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].indexOf(session);
     
@@ -446,9 +460,7 @@ function updateTableWithNewData(formData) {
     // Update the child book
     const childRow = Array.from(rows).find(row => {
         const rowBook = row.getAttribute('data-book');
-        const rowLevel = parseInt(row.getAttribute('data-level'));
-        console.log('Checking row:', rowBook, 'Level:', rowLevel);
-        return rowBook === book && rowLevel === bookParts.length - 1;
+        return rowBook === book;
     });
 
     if (childRow) {
@@ -458,25 +470,28 @@ function updateTableWithNewData(formData) {
         const newPnl = parseFloat(pnl);
         const difference = newPnl - oldPnl;
         
-        updateCell(cell, newPnl, explanation);
+        await updateCell(cell, newPnl, explanation);
 
-        // Update parent book
-        const parentRow = Array.from(rows).find(row => {
-            return row.getAttribute('data-book') === bookParts[0] && 
-                    parseInt(row.getAttribute('data-level')) === 0;
-        });
-
-        if (parentRow) {
-            updateParentBook(parentRow, sessionIndex, difference);
-        } else {
-            console.error('Parent row not found for book:', bookParts[0]);
+        // Update parent books
+        let currentRow = childRow;
+        let updatedRows = [childRow];
+        while (currentRow) {
+            const parentRow = Array.from(rows).find(row => {
+                return row.getAttribute('data-book') === currentRow.getAttribute('data-book').split('/').slice(0, -1).join('/');
+            });
+            if (parentRow) {
+                await updateParentBook(parentRow, sessionIndex, difference);
+                currentRow = parentRow;
+                updatedRows.push(parentRow);
+            } else {
+                break;
+            }
         }
 
-        updateGlobalTotal();
+        await updateGlobalTotal();
 
-        // Add tooltips to the updated rows
-        addTooltips(childRow);
-        if (parentRow) addTooltips(parentRow);
+        // Add tooltips to all updated rows
+        updatedRows.forEach(row => addTooltips(row));
     } else {
         console.error('Child row not found for book:', book);
         console.log('Available rows:', Array.from(rows).map(row => ({
@@ -486,50 +501,64 @@ function updateTableWithNewData(formData) {
     }
     
     highlightMissingInputs();
-    // Remove this line: addTooltips();
 }
 
-function updateCell(cell, value, explanation = '') {
+async function updateCell(cell, value, explanation = '') {
     cell.textContent = formatLargeNumber(value);
-    cell.classList.remove('missing', 'warning', 'positive', 'negative');
+    cell.classList.remove('missing', 'warning', 'positive', 'negative', 'unusual-pnl', 'has-explanation');
     cell.classList.add('updated');
-    
+
     if (value > 0) {
         cell.classList.add('positive');
     } else if (value < 0) {
         cell.classList.add('negative');
     }
-    
+
+    // Check if the new PNL is unusual
+    const book = cell.closest('.book-row').getAttribute('data-book');
+    const isUnusual = await isUnusualPNL(value, book);
+
+    if (isUnusual) {
+        cell.classList.add('unusual-pnl');
+    }
+
     if (explanation) {
         cell.setAttribute('data-explanation', explanation);
         cell.classList.add('has-explanation');
+    } else {
+        cell.removeAttribute('data-explanation');
     }
-    
+
+    cell.setAttribute('data-pnl', value);
+
+    // Re-add tooltip
+    addTooltips(cell.closest('.book-row'));
+
     setTimeout(() => {
         cell.classList.remove('updated');
     }, 2000);
 }
 
-function updateParentBook(parentRow, sessionIndex, difference) {
+async function updateParentBook(parentRow, sessionIndex, difference) {
     const parentCell = parentRow.querySelectorAll('.cell')[sessionIndex + 1];
     const parentPnl = parseLargeNumber(parentCell.textContent);
     const newParentPnl = parentPnl + difference;
-    updateCell(parentCell, newParentPnl);
+    await updateCell(parentCell, newParentPnl);
 }
 
-function updateGlobalTotal() {
+async function updateGlobalTotal() {
     const globalTotalRow = document.querySelector('.global-total');
     if (globalTotalRow) {
         const cells = globalTotalRow.querySelectorAll('.cell');
-        ['ASIA', 'LONDON', 'NEW YORK', 'EOD'].forEach((session, index) => {
+        for (let index = 0; index < 4; index++) { // ASIA, LONDON, NEW YORK, EOD
             let total = 0;
             document.querySelectorAll('.book-row[data-level="0"]').forEach(row => {
                 const cell = row.querySelectorAll('.cell')[index + 1];
                 const cellValue = parseLargeNumber(cell.textContent);
                 total += cellValue;
             });
-            updateCell(cells[index + 1], total);
-        });
+            await updateCell(cells[index + 1], total);
+        }
     }
 }
 
@@ -588,7 +617,7 @@ function initializeEmptyTable() {
         row.className = 'table-row book-row';
         row.setAttribute('data-level', level);
         row.setAttribute('data-book', bookName);
-    
+
         const indentation = '&nbsp;'.repeat(level * 4);
         const displayName = level === 0 ? bookName : bookName.split('/').pop();
         row.innerHTML = `
@@ -597,7 +626,7 @@ function initializeEmptyTable() {
                 <div class="cell missing">-</div>
             `).join('')}
         `;
-    
+
         tableBody.appendChild(row);
     }
 
@@ -632,15 +661,21 @@ function initializeEmptyTable() {
 
 function createBookHierarchy(data) {
     const hierarchy = {};
-    Object.entries(data).forEach(([book, pnlData]) => {
+    Object.entries(data).forEach(([book, bookData]) => {
         const parts = book.split('/');
         let current = hierarchy;
         parts.forEach((part, index) => {
             if (!current[part]) {
-                current[part] = { name: part, children: {}, pnl: {} };
+                current[part] = { name: part, children: {}, pnl: {}, explanations: {} };
             }
             if (index === parts.length - 1) {
-                current[part].pnl = pnlData;
+                current[part].pnl = {
+                    ASIA: bookData.ASIA,
+                    LONDON: bookData.LONDON,
+                    'NEW YORK': bookData['NEW YORK'],
+                    EOD: bookData.EOD
+                };
+                current[part].explanations = bookData.explanations || {};
             } else {
                 current = current[part].children;
             }
@@ -683,7 +718,7 @@ function highlightMissingInputs() {
     ];
 
     const currentHour = now.getUTCHours();
-    let currentSessionIndex = sessions.findIndex(session => 
+    let currentSessionIndex = sessions.findIndex(session =>
         (session.start < session.end && currentHour >= session.start && currentHour < session.end) ||
         (session.start > session.end && (currentHour >= session.start || currentHour < session.end))
     );
@@ -716,7 +751,7 @@ function updateLastUpdated(timestamp) {
     const date = new Date(timestamp);
     lastUpdatedElement.textContent = `Last Updated: ${date.toLocaleString()}`;
 }
-    
+
 
 
 
@@ -763,7 +798,7 @@ function initializeUIElements() {
 }
 
 function createFloatingBackgroundElements() {
-    
+
     // Create floating background elements
     const background = document.querySelector('.background');
     for (let i = 0; i < 20; i++) {
@@ -776,35 +811,35 @@ function createFloatingBackgroundElements() {
         span.style.animationDuration = `${Math.random() * 10 + 5}s`;
         background.appendChild(span);
     }
-    
+
 
 }
 
-    
+
 function addPageTransitionEffect() {
-    
+
     // Add page transition effect
     const fancyLinks = document.querySelectorAll('.fancy-link');
     fancyLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
+        link.addEventListener('click', function (e) {
             e.preventDefault();
             const href = this.getAttribute('href');
-    
+
             // Create and append transition overlay
             const overlay = document.createElement('div');
             overlay.classList.add('page-transition');
             document.body.appendChild(overlay);
-    
+
             // Create and append diagonal wipe element
             const wipe = document.createElement('div');
             wipe.classList.add('diagonal-wipe');
             overlay.appendChild(wipe);
-    
+
             // Trigger transition
             setTimeout(() => {
                 overlay.classList.add('active');
             }, 10);
-    
+
             // Navigate to new page after transition
             setTimeout(() => {
                 window.location.href = href;
@@ -819,17 +854,17 @@ function checkPageTransition() {
     if (performance.navigation.type === performance.navigation.TYPE_NAVIGATE) {
         const overlay = document.createElement('div');
         overlay.classList.add('page-transition', 'active');
-        
+
         const wipe = document.createElement('div');
         wipe.classList.add('diagonal-wipe');
         overlay.appendChild(wipe);
-        
+
         document.body.appendChild(overlay);
-    
+
         setTimeout(() => {
             overlay.classList.remove('active');
         }, 10);
-    
+
         setTimeout(() => {
             overlay.remove();
         }, 1000);
@@ -839,7 +874,7 @@ function checkPageTransition() {
 async function handleFormSubmit(e) {
     e.preventDefault();
     console.log('Form submit event triggered');
-  
+
     if (!(await validateForm())) {
         return;
     }
@@ -850,7 +885,7 @@ async function handleFormSubmit(e) {
     } else {
         console.warn('Loading element not found');
     }
-  
+
     const formData = {
         book: document.getElementById('book').value,
         pnl: parseFloat(document.getElementById('pnl').value),
@@ -875,14 +910,14 @@ async function handleFormSubmit(e) {
         }
 
         const data = await response.json();
-        
+
         // Hide loading spinner
         if (loading) {
             loading.style.display = 'none';
         }
-        
+
         console.log('Response received:', data);
-        handleSuccessfulSubmission(data, formData);
+        await handleSuccessfulSubmission(data, formData);
         e.target.reset();
         hideExplanationField();
     } catch (error) {
@@ -899,72 +934,70 @@ async function handleFormSubmit(e) {
         }
     }
 }
-    
+
 async function validateForm() {
     const book = document.getElementById('book').value;
     const pnl = parseFloat(document.getElementById('pnl').value);
     const session = document.getElementById('session').value;
     const explanation = document.getElementById('explanation').value;
-  
+
     if (!book || book.trim() === '') {
         showMessage('error', 'Please select a book.');
         return false;
     }
-  
+
     if (isNaN(pnl)) {
         showMessage('error', 'Please enter a valid number for PNL.');
         return false;
     }
-  
+
     if (!session || session.trim() === '') {
         showMessage('error', 'Please select a session.');
         return false;
     }
-  
+
     const unusual = await isUnusualPNL(pnl, book);
     if (unusual && !explanation) {
         showMessage('error', 'Please provide an explanation for this unusual PNL value.');
         showExplanationField();
         return false;
     }
-  
+
     return true;
 }
 
-function handleSuccessfulSubmission(data, formData) {
+async function handleSuccessfulSubmission(data, formData) {
     showMessage('success', data.message);
-    
-    const bookParts = formData.book.split('/');
-    const parentBook = bookParts[0];
-    const childBook = bookParts[bookParts.length - 1];
 
-    // Ensure the parent book exists in pnlData
-    if (!pnlData.todays_pnl[parentBook]) {
-        pnlData.todays_pnl[parentBook] = {};
+    const book = formData.book;
+
+    // Ensure the book exists in pnlData
+    if (!pnlData.todays_pnl[book]) {
+        pnlData.todays_pnl[book] = {
+            ASIA: 0,
+            LONDON: 0,
+            'NEW YORK': 0,
+            EOD: 0,
+            explanations: {}
+        };
     }
 
-    // Ensure the child book exists under the parent
-    if (!pnlData.todays_pnl[parentBook][childBook]) {
-        pnlData.todays_pnl[parentBook][childBook] = {};
-    }
+    // Update the PNL for the book
+    pnlData.todays_pnl[book][formData.session] = formData.pnl;
 
-    // Update the PNL for the child book
-    pnlData.todays_pnl[parentBook][childBook][formData.session] = formData.pnl;
-    
     // Add explanation if provided
     if (formData.explanation) {
-        if (!pnlData.todays_pnl[parentBook][childBook].explanations) {
-            pnlData.todays_pnl[parentBook][childBook].explanations = {};
+        if (!pnlData.todays_pnl[book].explanations) {
+            pnlData.todays_pnl[book].explanations = {};
         }
-        pnlData.todays_pnl[parentBook][childBook].explanations[formData.session] = formData.explanation;
+        pnlData.todays_pnl[book].explanations[formData.session] = formData.explanation;
     }
-    
+
     // Update the table with new data
-    updateTableWithNewData(formData);
-    
+    await updateTableWithNewData(formData);
+
     updateLastUpdated(data.timestamp);
 }
-
 
 
 function setupFilters() {
@@ -979,7 +1012,7 @@ function setupDarkModeToggle() {
     });
 }
 
-function setUpEODToggle () {
+function setUpEODToggle() {
     const toggleButton = document.getElementById('toggleEOD');
     if (toggleButton) {
         toggleButton.addEventListener('click', toggleEODDisplay);
@@ -1116,7 +1149,7 @@ function createPnlHeatmapChart(data) {
     const ctx = document.getElementById('pnlHeatmapChart').getContext('2d');
     const books = Object.keys(data);
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    
+
     const heatmapData = [];
     let minValue = Infinity;
     let maxValue = -Infinity;
@@ -1205,7 +1238,7 @@ function createPnLHeatmap(data) {
     const dates = Object.keys(data).sort((a, b) => new Date(a) - new Date(b));
     const books = Object.keys(data[dates[0]]);
 
-    const chartData = dates.flatMap(date => 
+    const chartData = dates.flatMap(date =>
         books.map(book => ({
             x: date,
             y: book,
@@ -1311,7 +1344,7 @@ function createPnLHeatmap(data) {
                     ticks: {
                         autoSkip: true,
                         maxTicksLimit: 20,
-                        callback: function(value, index, values) {
+                        callback: function (value, index, values) {
                             if (index % 5 === 0 || index === 0 || index === values.length - 1) {
                                 return value;
                             }
@@ -1461,7 +1494,7 @@ function createPnLDistributionChart(data) {
 
     const dates = Object.keys(data);
     const books = Object.keys(data[dates[0]]);
-    const pnlValues = dates.flatMap(date => 
+    const pnlValues = dates.flatMap(date =>
         books.map(book => data[date][book])
     );
 
