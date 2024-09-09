@@ -1101,6 +1101,8 @@ function applyFilters() {
 document.addEventListener('DOMContentLoaded', initializePNLCollector);
 
 
+
+
 function createCumulativePnlChart(data) {
     const ctx = document.getElementById('cumulativePnlChart').getContext('2d');
     const dates = Object.keys(data);
@@ -1119,9 +1121,11 @@ function createCumulativePnlChart(data) {
         },
         options: {
             responsive: true,
-            title: {
-                display: true,
-                text: 'Cumulative PnL Over Time'
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Cumulative PnL Over Time'
+                }
             }
         }
     });
@@ -1134,321 +1138,121 @@ function createDailySessionPnlChart(data) {
     const datasets = sessions.map(session => ({
         label: session,
         data: dates.map(date => data[date][session]),
-        stack: 'Stack 0'
+        fill: false
     }));
 
     new Chart(ctx, {
-        type: 'bar',
+        type: 'line',
         data: {
             labels: dates,
             datasets: datasets
         },
         options: {
             responsive: true,
-            title: {
-                display: true,
-                text: 'Daily PnL Contribution by Session'
-            },
-            scales: {
-                x: {
-                    stacked: true,
-                },
-                y: {
-                    stacked: true
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Daily Session PnL Comparison'
                 }
             }
         }
     });
 }
 
-function createPnlHeatmapChart(data) {
-    const ctx = document.getElementById('pnlHeatmapChart').getContext('2d');
-    const books = Object.keys(data);
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+function createPnlHeatmap(data) {
+    const ctx = document.getElementById('pnlHeatmap').getContext('2d');
+    const dates = Object.keys(data);
+    const sessions = Object.keys(data[dates[0]]);
+    
+    const heatmapData = dates.flatMap((date, i) => 
+        sessions.map((session, j) => ({
+            x: j,
+            y: i,
+            v: data[date][session] || 0
+        }))
+    );
 
-    const heatmapData = [];
-    let minValue = Infinity;
-    let maxValue = -Infinity;
-
-    books.forEach((book, bookIndex) => {
-        days.forEach((day, dayIndex) => {
-            const value = data[book][dayIndex] || 0;
-            heatmapData.push({
-                x: dayIndex,
-                y: bookIndex,
-                v: value
-            });
-            minValue = Math.min(minValue, value);
-            maxValue = Math.max(maxValue, value);
-        });
-    });
-
+    const minValue = Math.min(...heatmapData.map(d => d.v));
+    const maxValue = Math.max(...heatmapData.map(d => d.v));
     const colorScale = chroma.scale(['red', 'white', 'green']).domain([minValue, 0, maxValue]);
 
     new Chart(ctx, {
         type: 'matrix',
         data: {
             datasets: [{
-                label: 'PnL Performance Heatmap',
                 data: heatmapData,
-                backgroundColor: (context) => {
-                    const value = context.dataset.data[context.dataIndex].v;
-                    return colorScale(value).hex();
+                backgroundColor: (context) => colorScale(context.dataset.data[context.dataIndex].v).hex(),
+                width: (context) => {
+                    const a = context.chart.chartArea || {};
+                    return (a.right - a.left) / sessions.length - 1;
                 },
-                borderColor: '#ffffff',
-                borderWidth: 1,
-                width: ({ chart }) => (chart.chartArea || {}).width / 7 - 1,
-                height: ({ chart }) => (chart.chartArea || {}).height / books.length - 1
+                height: (context) => {
+                    const a = context.chart.chartArea || {};
+                    return (a.bottom - a.top) / dates.length - 1;
+                }
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            scales: {
-                x: {
-                    type: 'category',
-                    labels: days,
-                    offset: true,
-                    ticks: {
-                        stepSize: 1
-                    }
-                },
-                y: {
-                    type: 'category',
-                    labels: books,
-                    offset: true,
-                    ticks: {
-                        stepSize: 1
-                    }
-                }
-            },
             plugins: {
-                legend: {
-                    display: false
-                },
+                legend: false,
                 tooltip: {
                     callbacks: {
                         title: (context) => {
-                            const dataIndex = context[0].dataIndex;
-                            const book = books[Math.floor(dataIndex / 7)];
-                            const day = days[dataIndex % 7];
-                            return `${book} - ${day}`;
+                            const d = context[0].dataset.data[context[0].dataIndex];
+                            return `${dates[d.y]} - ${sessions[d.x]}`;
                         },
                         label: (context) => {
-                            return `PnL: $${context.dataset.data[context.dataIndex].v.toFixed(2)}`;
+                            return `PnL: ${context.dataset.data[context.dataIndex].v.toFixed(2)}`;
                         }
                     }
-                }
-            }
-        }
-    });
-}
-
-function createPnLHeatmap(data) {
-    const ctx = document.getElementById('pnlHeatmap');
-    if (!ctx) {
-        console.error('Canvas element not found for PnL Heatmap');
-        return;
-    }
-
-    const dates = Object.keys(data).sort((a, b) => new Date(a) - new Date(b));
-    const books = Object.keys(data[dates[0]]);
-
-    const chartData = dates.flatMap(date =>
-        books.map(book => ({
-            x: date,
-            y: book,
-            v: data[date][book]
-        }))
-    );
-
-    const minPnL = Math.min(...chartData.map(d => Number(d.v) || 0));
-    const maxPnL = Math.max(...chartData.map(d => Number(d.v) || 0));
-    const absMax = Math.max(Math.abs(minPnL), Math.abs(maxPnL));
-
-    // Calculate insights
-    const bookPerformance = books.map(book => {
-        const pnlValues = dates.map(date => Number(data[date][book]) || 0);
-        const totalPnL = pnlValues.reduce((sum, val) => sum + val, 0);
-        const avgPnL = totalPnL / dates.length;
-        const variance = pnlValues.reduce((sum, val) => sum + Math.pow(val - avgPnL, 2), 0) / dates.length;
-        return {
-            name: book,
-            totalPnL,
-            avgPnL,
-            volatility: Math.sqrt(variance)
-        };
-    });
-
-    bookPerformance.sort((a, b) => b.totalPnL - a.totalPnL);
-
-    const bestBook = bookPerformance[0];
-    const worstBook = bookPerformance[bookPerformance.length - 1];
-    const mostVolatileBook = bookPerformance.reduce((prev, current) => (prev.volatility > current.volatility) ? prev : current);
-
-    // Calculate the height based on the number of books
-    const height = Math.max(400, books.length * 20);
-    ctx.height = height;
-
-    new Chart(ctx, {
-        type: 'scatter',
-        data: {
-            labels: dates,
-            datasets: [{
-                label: 'PnL Heatmap',
-                data: chartData,
-                backgroundColor: (context) => {
-                    const value = Number(context.raw.v) || 0;
-                    const alpha = Math.abs(value) / absMax;
-                    return value > 0
-                        ? `rgba(0, 255, 0, ${alpha})`
-                        : `rgba(255, 0, 0, ${alpha})`;
-                },
-                borderColor: 'rgba(0, 0, 0, 0.1)',
-                borderWidth: 1,
-                pointRadius: 10,
-                pointHoverRadius: 12
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label(context) {
-                            const v = context.raw;
-                            return [
-                                `Date: ${v.x}`,
-                                `Book: ${v.y}`,
-                                `PnL: ${Number(v.v).toFixed(2)}`
-                            ];
-                        }
-                    }
-                },
-                legend: {
-                    display: false
                 },
                 title: {
                     display: true,
-                    text: 'PnL Heatmap by Book and Date'
+                    text: 'PnL Performance Heatmap'
                 }
             },
             scales: {
                 x: {
-                    type: 'category',
-                    position: 'bottom',
-                    title: {
-                        display: true,
-                        text: 'Date'
-                    },
                     ticks: {
-                        maxRotation: 90,
-                        minRotation: 90,
-                        autoSkip: true,
-                        maxTicksLimit: 20
+                        callback: (value) => sessions[value]
                     }
                 },
                 y: {
-                    type: 'category',
-                    position: 'left',
-                    title: {
-                        display: true,
-                        text: 'Book'
-                    },
-                    reverse: true,
                     ticks: {
-                        autoSkip: true,
-                        maxTicksLimit: 20,
-                        callback: function (value, index, values) {
-                            if (index % 5 === 0 || index === 0 || index === values.length - 1) {
-                                return value;
-                            }
-                            return '';
-                        }
+                        callback: (value) => dates[value]
                     }
-                }
-            },
-            layout: {
-                padding: {
-                    top: 30,
-                    right: 10,
-                    bottom: 50,
-                    left: 100
                 }
             }
         }
     });
 
-    // Display insights
-    const insightsDiv = document.createElement('div');
-    insightsDiv.innerHTML = `
-        <h3>Key Insights:</h3>
-        <ul>
-            <li>Best performing book: ${bestBook.name} (Total PnL: ${bestBook.totalPnL.toFixed(2)}, Avg PnL: ${bestBook.avgPnL.toFixed(2)})</li>
-            <li>Worst performing book: ${worstBook.name} (Total PnL: ${worstBook.totalPnL.toFixed(2)}, Avg PnL: ${worstBook.avgPnL.toFixed(2)})</li>
-            <li>Most volatile book: ${mostVolatileBook.name} (Volatility: ${mostVolatileBook.volatility.toFixed(2)})</li>
-        </ul>
-        <p>The heatmap shows PnL performance for each book over time. Green cells indicate positive PnL, while red cells indicate negative PnL. The intensity of the color represents the magnitude of the PnL.</p>
-    `;
-    ctx.parentNode.insertBefore(insightsDiv, ctx.nextSibling);
-}
-
-function createMonthlyBookPnlChart(data) {
-    const ctx = document.getElementById('monthlyBookPnlChart').getContext('2d');
-    const months = Object.keys(data);
-    const books = Object.keys(data[months[0]]);
-    const datasets = books.map(book => ({
-        label: book,
-        data: months.map(month => data[month][book]),
-        stack: 'Stack 0'
-    }));
-
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: months,
-            datasets: datasets
-        },
-        options: {
-            responsive: true,
-            title: {
-                display: true,
-                text: 'Monthly Performance by Book'
-            },
-            scales: {
-                x: {
-                    stacked: true,
-                },
-                y: {
-                    stacked: true
-                }
-            }
+    // Create legend
+    const legendContainer = document.getElementById('heatmapLegend');
+    const gradient = chroma.scale(['red', 'white', 'green']).colors(5);
+    let legendHTML = '<div style="display: flex; justify-content: center; align-items: center;">';
+    gradient.forEach((color, index) => {
+        const value = minValue + (maxValue - minValue) * (index / (gradient.length - 1));
+        legendHTML += `<div style="background: ${color}; width: 50px; height: 20px;"></div>`;
+        if (index === 0 || index === gradient.length - 1) {
+            legendHTML += `<span style="margin: 0 10px;">${value.toFixed(2)}</span>`;
         }
     });
+    legendHTML += '</div>';
+    legendContainer.innerHTML = legendHTML;
 }
+
 function createBookPerformanceChart(data) {
-    const ctx = document.getElementById('bookPerformanceChart');
-    if (!ctx) {
-        console.error('Canvas element not found for Book Performance Chart');
-        return;
-    }
-
-    const dates = Object.keys(data);
-    const books = Object.keys(data[dates[0]]);
-
-    const bookPerformance = books.map(book => {
-        const pnlValues = dates.map(date => data[date][book]);
-        const totalPnL = pnlValues.reduce((sum, pnl) => sum + pnl, 0);
-        const frequency = pnlValues.filter(pnl => pnl !== 0).length;
-        const volatility = Math.sqrt(pnlValues.reduce((sum, pnl) => sum + pnl * pnl, 0) / pnlValues.length);
-
-        return {
-            x: frequency,
-            y: totalPnL,
-            r: Math.sqrt(volatility) * 3,
-            label: book
-        };
+    const ctx = document.getElementById('bookPerformanceChart').getContext('2d');
+    const books = Object.keys(data);
+    const totalPnl = books.map(book => Object.values(data[book]).reduce((sum, pnl) => sum + pnl, 0));
+    const frequency = books.map(book => Object.values(data[book]).filter(pnl => pnl !== 0).length);
+    const volatility = books.map(book => {
+        const pnlValues = Object.values(data[book]);
+        const mean = pnlValues.reduce((sum, pnl) => sum + pnl, 0) / pnlValues.length;
+        const squaredDiffs = pnlValues.map(pnl => Math.pow(pnl - mean, 2));
+        return Math.sqrt(squaredDiffs.reduce((sum, diff) => sum + diff, 0) / pnlValues.length);
     });
 
     new Chart(ctx, {
@@ -1456,41 +1260,46 @@ function createBookPerformanceChart(data) {
         data: {
             datasets: [{
                 label: 'Book Performance',
-                data: bookPerformance,
-                backgroundColor: (context) => {
-                    const value = context.raw.y;
-                    return value >= 0 ? 'rgba(75, 192, 192, 0.6)' : 'rgba(255, 99, 132, 0.6)';
-                },
-                borderColor: (context) => {
-                    const value = context.raw.y;
-                    return value >= 0 ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 99, 132, 1)';
-                },
-                borderWidth: 1
+                data: books.map((book, i) => ({
+                    x: frequency[i],
+                    y: totalPnl[i],
+                    r: volatility[i] * 5  // Adjust the multiplier for better visualization
+                })),
+                backgroundColor: 'rgba(75, 192, 192, 0.6)'
             }]
         },
         options: {
             responsive: true,
             plugins: {
+                title: {
+                    display: true,
+                    text: 'Book Performance Overview'
+                },
                 tooltip: {
                     callbacks: {
                         label: (context) => {
-                            return `${context.raw.label}: PnL: $${context.raw.y.toFixed(2)}, Frequency: ${context.raw.x}`;
+                            const book = books[context.dataIndex];
+                            const freq = frequency[context.dataIndex];
+                            const pnl = totalPnl[context.dataIndex];
+                            const vol = volatility[context.dataIndex];
+                            return [
+                                `Book: ${book}`,
+                                `Frequency: ${freq}`,
+                                `Total PnL: ${pnl.toFixed(2)}`,
+                                `Volatility: ${vol.toFixed(2)}`
+                            ];
                         }
                     }
                 }
             },
             scales: {
                 x: {
-                    type: 'linear',
-                    position: 'bottom',
                     title: {
                         display: true,
                         text: 'Frequency'
                     }
                 },
                 y: {
-                    type: 'linear',
-                    position: 'left',
                     title: {
                         display: true,
                         text: 'Total PnL'
@@ -1501,57 +1310,45 @@ function createBookPerformanceChart(data) {
     });
 }
 
-function createPnLDistributionChart(data) {
-    const ctx = document.getElementById('pnlDistributionChart');
-    if (!ctx) {
-        console.error('Canvas element not found for PnL Distribution Chart');
-        return;
-    }
-
-    const dates = Object.keys(data);
-    const books = Object.keys(data[dates[0]]);
-    const pnlValues = dates.flatMap(date =>
-        books.map(book => data[date][book])
-    );
-
-    const binSize = 1000; // Adjust this value based on your data range
-
+function createPnlDistributionChart(data) {
+    const ctx = document.getElementById('pnlDistributionChart').getContext('2d');
+    const allPnl = Object.values(data).flatMap(book => Object.values(book));
+    const binSize = 1000; // Adjust this value to change the granularity of the histogram
     const bins = {};
-    pnlValues.forEach(pnl => {
+
+    allPnl.forEach(pnl => {
         const binIndex = Math.floor(pnl / binSize);
         bins[binIndex] = (bins[binIndex] || 0) + 1;
     });
 
-    const chartData = Object.entries(bins).map(([bin, count]) => ({
-        x: parseInt(bin) * binSize + binSize / 2,
-        y: count
-    })).sort((a, b) => a.x - b.x);
+    const sortedBins = Object.entries(bins).sort(([a], [b]) => parseFloat(a) - parseFloat(b));
 
     new Chart(ctx, {
         type: 'bar',
         data: {
+            labels: sortedBins.map(([bin]) => `${(parseFloat(bin) * binSize).toFixed(0)} - ${((parseFloat(bin) + 1) * binSize).toFixed(0)}`),
             datasets: [{
                 label: 'PnL Distribution',
-                data: chartData,
-                backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
+                data: sortedBins.map(([, count]) => count),
+                backgroundColor: 'rgba(75, 192, 192, 0.6)'
             }]
         },
         options: {
             responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'PnL Distribution'
+                }
+            },
             scales: {
                 x: {
-                    type: 'linear',
-                    position: 'bottom',
                     title: {
                         display: true,
-                        text: 'PnL'
+                        text: 'PnL Range'
                     }
                 },
                 y: {
-                    type: 'linear',
-                    position: 'left',
                     title: {
                         display: true,
                         text: 'Frequency'
@@ -1563,40 +1360,34 @@ function createPnLDistributionChart(data) {
 }
 
 function createTopPerformersChart(data) {
-    const ctx = document.getElementById('topPerformersChart');
-    if (!ctx) {
-        console.error('Canvas element not found for Top Performers Chart');
-        return;
-    }
-
-    const dates = Object.keys(data);
-    const books = Object.keys(data[dates[0]]);
-
-    const bookPerformance = books.map(book => ({
-        book,
-        totalPnL: dates.reduce((sum, date) => sum + data[date][book], 0)
-    }));
-
-    const sortedData = bookPerformance.sort((a, b) => b.totalPnL - a.totalPnL);
-    const topBooks = sortedData.slice(0, 10); // Top 10 performers
+    const ctx = document.getElementById('topPerformersChart').getContext('2d');
+    const books = Object.keys(data);
+    const totalPnl = books.map(book => Object.values(data[book]).reduce((sum, pnl) => sum + pnl, 0));
+    const sortedBooks = books.map((book, index) => ({ book, totalPnl: totalPnl[index] }))
+                             .sort((a, b) => b.totalPnl - a.totalPnl)
+                             .slice(0, 10);
 
     new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: topBooks.map(book => book.book),
+            labels: sortedBooks.map(book => book.book),
             datasets: [{
                 label: 'Total PnL',
-                data: topBooks.map(book => book.totalPnL),
-                backgroundColor: topBooks.map(book => book.totalPnL >= 0 ? 'rgba(75, 192, 192, 0.6)' : 'rgba(255, 99, 132, 0.6)'),
-                borderColor: topBooks.map(book => book.totalPnL >= 0 ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 99, 132, 1)'),
-                borderWidth: 1
+                data: sortedBooks.map(book => book.totalPnl),
+                backgroundColor: 'rgba(75, 192, 192, 0.6)'
             }]
         },
         options: {
             responsive: true,
+            indexAxis: 'y',
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Top 10 Performing Books'
+                }
+            },
             scales: {
-                y: {
-                    beginAtZero: true,
+                x: {
                     title: {
                         display: true,
                         text: 'Total PnL'
@@ -1607,18 +1398,18 @@ function createTopPerformersChart(data) {
     });
 }
 
-async function initCharts() {
-    const data = await fetchPnLData();
-    createCumulativePnlChart(data.cumulative_pnl);
-    createDailySessionPnlChart(data.daily_session_pnl);
-    // createPnlHeatmapChart(data.heatmap_data);
-    createPnLHeatmap(data.heatmap_data);
-
-    createMonthlyBookPnlChart(data.monthly_book_pnl);
-    createBookPerformanceChart(data.book_stats);
-
-    createPnLDistributionChart(data.book_stats);
-    createTopPerformersChart(data.book_stats);
+function createVisualizations() {
+    fetch('/get_pnl_data')
+        .then(response => response.json())
+        .then(data => {
+            createCumulativePnlChart(data.cumulative_pnl);
+            createDailySessionPnlChart(data.daily_session_pnl);
+            createPnlHeatmap(data.daily_session_pnl);
+            createBookPerformanceChart(data.todays_pnl);
+            createPnlDistributionChart(data.todays_pnl);
+            createTopPerformersChart(data.todays_pnl);
+        })
+        .catch(error => console.error('Error fetching PNL data:', error));
 }
 
-initCharts();
+document.addEventListener('DOMContentLoaded', createVisualizations);
