@@ -490,8 +490,15 @@ async function updateTableWithNewData(formData) {
 
         await updateGlobalTotal();
 
-        // Add tooltips to all updated rows
-        updatedRows.forEach(row => addTooltips(row));
+        // Add tooltips and highlight all updated rows
+        updatedRows.forEach(row => {
+            addTooltips(row);
+            const updatedCell = row.querySelectorAll('.cell')[sessionIndex + 1];
+            updatedCell.classList.add('updated');
+            setTimeout(() => {
+                updatedCell.classList.remove('updated');
+            }, 2000);
+        });
     } else {
         console.error('Child row not found for book:', book);
         console.log('Available rows:', Array.from(rows).map(row => ({
@@ -532,10 +539,12 @@ async function updateCell(cell, value, explanation = '') {
     cell.setAttribute('data-pnl', value);
 
     // Re-add tooltip
-    addTooltips(cell.closest('.book-row'));
+    addTooltipToCell(cell);
 
+    // Highlight the cell
+    cell.classList.add('highlight');
     setTimeout(() => {
-        cell.classList.remove('updated');
+        cell.classList.remove('highlight', 'updated');
     }, 2000);
 }
 
@@ -875,8 +884,21 @@ async function handleFormSubmit(e) {
     e.preventDefault();
     console.log('Form submit event triggered');
 
-    if (!(await validateForm())) {
+    const book = document.getElementById('book').value;
+    const pnl = parseFloat(document.getElementById('pnl').value);
+    const session = document.getElementById('session').value;
+    let explanation = document.getElementById('explanation').value;
+
+    if (!book || book.trim() === '' || isNaN(pnl) || !session || session.trim() === '') {
+        showMessage('error', 'Please fill in all required fields.');
         return;
+    }
+
+    const isUnusual = await isUnusualPNL(pnl, book);
+    if (isUnusual && !explanation) {
+        showMessage('warning', 'This PNL value is unusual. Please provide an explanation.');
+        showExplanationField();
+        return; // Stop here and don't submit the form
     }
 
     // Show loading spinner
@@ -886,12 +908,7 @@ async function handleFormSubmit(e) {
         console.warn('Loading element not found');
     }
 
-    const formData = {
-        book: document.getElementById('book').value,
-        pnl: parseFloat(document.getElementById('pnl').value),
-        session: document.getElementById('session').value,
-        explanation: document.getElementById('explanation').value
-    };
+    const formData = { book, pnl, session, explanation };
 
     console.log('Sending form data:', formData);
 
@@ -1082,7 +1099,6 @@ function applyFilters() {
 
 
 document.addEventListener('DOMContentLoaded', initializePNLCollector);
-
 
 
 function createCumulativePnlChart(data) {

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,9 +8,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
     <script src="https://unpkg.com/@popperjs/core@2"></script>
-<script src="https://unpkg.com/tippy.js@6"></script>
-<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light.css" />
+    <script src="https://unpkg.com/tippy.js@6"></script>
+    <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light.css" />
 </head>
+
 <body>
     <div class="background">
         <span></span>
@@ -19,7 +21,7 @@
         <span></span>
         <span></span>
     </div>
-    
+
     <div class="container">
         <header>
             <h1><i class="fas fa-chart-line"></i> PNL Collector</h1>
@@ -31,11 +33,11 @@
                     <!-- For server-side rendering -->
                     <select id="book" required>
                         {% for top_level, sub_levels in book_structure.items() %}
-                            <optgroup label="{{ top_level }}">
-                                {% for sub_level in sub_levels %}
-                                    <option value="{{ top_level }}/{{ sub_level }}">{{ top_level }}/{{ sub_level }}</option>
-                                {% endfor %}
-                            </optgroup>
+                        <optgroup label="{{ top_level }}">
+                            {% for sub_level in sub_levels %}
+                            <option value="{{ top_level }}/{{ sub_level }}">{{ top_level }}/{{ sub_level }}</option>
+                            {% endfor %}
+                        </optgroup>
                         {% endfor %}
                     </select>
                 </div>
@@ -44,7 +46,7 @@
                     <label for="pnl"><i class="fas fa-dollar-sign"></i> PNL</label>
                     <input type="number" id="pnl" step="0.01" required>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="session"><i class="fas fa-globe"></i> Session</label>
                     <select id="session" required>
@@ -55,7 +57,8 @@
                     </select>
                 </div>
                 <div class="form-group" id="explanationGroup" style="display: none;">
-                    <label for="explanation"><i class="fas fa-comment"></i> Explanation (required for unusual PNL)</label>
+                    <label for="explanation"><i class="fas fa-comment"></i> Explanation (required for unusual
+                        PNL)</label>
                     <textarea id="explanation" rows="3"></textarea>
                 </div>
                 <button type="submit" class="submit-btn">
@@ -63,27 +66,27 @@
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </form>
-            
+
             <div id="message" class="message"></div>
         </main>
     </div>
-    
+
 
     <div class="fancy-link-container">
         <a href="/" class="fancy-link" data-page="home">
-          <span class="fancy-link-text">Home</span>
-          <span class="fancy-link-icon">🏠</span>
+            <span class="fancy-link-text">Home</span>
+            <span class="fancy-link-icon">🏠</span>
         </a>
         <a href="/visualization" class="fancy-link" data-page="visualization">
-          <span class="fancy-link-text">Visualization</span>
-          <span class="fancy-link-icon">📊</span>
+            <span class="fancy-link-text">Visualization</span>
+            <span class="fancy-link-icon">📊</span>
         </a>
     </div>
     <div id="loading" class="loading-overlay" style="display: none;">
         <div class="fancy-spinner">
-          <div class="ring"></div>
-          <div class="ring"></div>
-          <div class="dot"></div>
+            <div class="ring"></div>
+            <div class="ring"></div>
+            <div class="dot"></div>
         </div>
     </div>
 
@@ -105,35 +108,36 @@
             </div>
         </div>
     </div>
-    
+
     <div id="lastUpdated" class="last-updated"></div>
 
-<div class="theme-toggle">
-    <input type="checkbox" id="theme-switch" />
-    <label for="theme-switch">Dark Mode</label>
-</div>
+    <div class="theme-toggle">
+        <input type="checkbox" id="theme-switch" />
+        <label for="theme-switch">Dark Mode</label>
+    </div>
 
-<!-- Add this inside the visualization-container div, before the pnlTable div -->
-<div class="filters">
-    <select id="bookFilter">
-        <option value="all">All Books</option>
-        {% for top_level in book_structure.keys() %}
+    <!-- Add this inside the visualization-container div, before the pnlTable div -->
+    <div class="filters">
+        <select id="bookFilter">
+            <option value="all">All Books</option>
+            {% for top_level in book_structure.keys() %}
             <option value="{{ top_level }}">{{ top_level }}</option>
-        {% endfor %}
-    </select>
-    <select id="sessionFilter">
-        <option value="all">All Sessions</option>
-        <option value="ASIA">ASIA</option>
-        <option value="LONDON">LONDON</option>
-        <option value="NEW YORK">NEW YORK</option>
-        <option value="EOD">EOD</option>
-    </select>
-</div>
+            {% endfor %}
+        </select>
+        <select id="sessionFilter">
+            <option value="all">All Sessions</option>
+            <option value="ASIA">ASIA</option>
+            <option value="LONDON">LONDON</option>
+            <option value="NEW YORK">NEW YORK</option>
+            <option value="EOD">EOD</option>
+        </select>
+    </div>
 
-<!-- For client-side JavaScript -->
-<script>
-const book_structure = {{ book_structure_json | safe }};
-</script>
-<script src="{{ url_for('static', path='/js/scripts.js') }}"></script>
+    <!-- For client-side JavaScript -->
+    <script>
+        const book_structure = {{ book_structure_json | safe }};
+    </script>
+    <script src="{{ url_for('static', path='/js/scripts.js') }}"></script>
 </body>
+
 </html>

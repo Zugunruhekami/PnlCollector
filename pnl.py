@@ -266,7 +266,7 @@ def is_unusual_pnl(book: str, pnl: float) -> bool:
     
     z_score = (pnl - mean) / std
     
-    return bool(abs(z_score) > 3 and abs(pnl) > 1000000)  # Combine both conditions
+    return bool(abs(z_score) > 3 or abs(pnl) > 1000000)  # Combine both conditions
 
 if __name__ == '__main__':
     import uvicorn
