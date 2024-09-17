@@ -11,6 +11,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.1.2/chroma.min.js"></script>
 </head>
 <body>
+    <div class="background"></div>
     <h1>PNL Visualization</h1>
 
     <div class="chart-container">
@@ -33,10 +34,14 @@
         <h2>Book Performance Overview</h2>
         <canvas id="bookPerformanceChart"></canvas>
     </div>
-
     <div class="chart-container">
-        <h2>PnL Distribution Chart</h2>
-        <canvas id="pnlDistributionChart"></canvas>
+        <h2>PnL Distribution Chart (Scatter)</h2>
+        <canvas id="pnlDistributionScatterChart"></canvas>
+    </div>
+    
+    <div class="chart-container">
+        <h2>PnL Distribution Chart (Bar)</h2>
+        <canvas id="pnlDistributionBarChart"></canvas>
     </div>
 
     <div class="chart-container">
@@ -55,6 +60,9 @@
         </a>
     </div>
     
+    <script>
+        const book_structure = JSON.parse('{{ book_structure_json | safe }}');
+    </script>
     <script src="{{ url_for('static', path='/js/scripts.js') }}"></script>
 </body>
 </html>

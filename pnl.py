@@ -136,8 +136,11 @@ async def check_unusual_pnl(book: str, pnl: float):
 
 @app.get("/visualization", response_class=HTMLResponse)
 async def visualization(request: Request):
-    return templates.TemplateResponse("visualization.html", {"request": request})
-
+    serializable_book_structure = convert_sets_to_lists(book_structure)
+    return templates.TemplateResponse("visualization.html", {
+        "request": request,
+        "book_structure_json": json.dumps(serializable_book_structure)
+    })
 
 @app.get("/get_pnl_data")
 async def get_pnl_data():
@@ -175,6 +178,28 @@ async def get_pnl_data():
         for date, row in daily_session_pnl.iterrows()
     }
 
+    last_updated = df['timestamp'].max()
+
+    # Calculate book performance statistics
+    book_stats = df.groupby('book').agg({
+        'pnl': ['sum', 'count', 'std']
+    }).reset_index()
+    book_stats.columns = ['book', 'total_pnl', 'frequency', 'volatility']
+    book_stats_dict = book_stats.to_dict(orient='records')
+
+    # Calculate top performers
+    top_performers = book_stats.sort_values('total_pnl', ascending=False).head(10)
+    top_performers_dict = top_performers.to_dict(orient='records')
+
+    return JSONResponse(content={
+        "todays_pnl": todays_pnl_dict,
+        "cumulative_pnl": cumulative_pnl_dict,
+        "daily_session_pnl": daily_session_pnl_dict,
+        "last_updated": last_updated.isoformat(),
+        "book_stats": book_stats_dict,
+        "top_performers": top_performers_dict
+    })
+
     # # PnL performance across books and days of the week
     # heatmap_data = df.groupby(['book', 'day_of_week'])['pnl'].mean().unstack()
     # heatmap_data_dict = {
@@ -206,7 +231,6 @@ async def get_pnl_data():
     #     'worst_performing_session': df.groupby('session')['pnl'].sum().idxmin(),
     # }
 
-    last_updated = df['timestamp'].max()
 
     return JSONResponse(content={
         "todays_pnl": todays_pnl_dict,

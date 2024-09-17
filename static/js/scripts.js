@@ -16,8 +16,10 @@ function initializePNLCollector() {
         return;
     }
 
-    // Initialize UI elements
-    initializeUIElements();
+    // Only initialize UI elements if we're on the main page
+    if (form) {
+        initializeUIElements();
+    }
 
     // Fetch initial PNL data
     fetchPnLData().then(data => {
@@ -807,9 +809,12 @@ function initializeUIElements() {
 }
 
 function createFloatingBackgroundElements() {
-
-    // Create floating background elements
     const background = document.querySelector('.background');
+    if (!background) {
+        console.warn('Background element not found');
+        return;
+    }
+
     for (let i = 0; i < 20; i++) {
         const span = document.createElement('span');
         span.style.top = `${Math.random() * 100}%`;
@@ -820,8 +825,6 @@ function createFloatingBackgroundElements() {
         span.style.animationDuration = `${Math.random() * 10 + 5}s`;
         background.appendChild(span);
     }
-
-
 }
 
 
@@ -1098,7 +1101,6 @@ function applyFilters() {
 
 
 
-document.addEventListener('DOMContentLoaded', initializePNLCollector);
 
 
 
@@ -1161,20 +1163,20 @@ function createDailySessionPnlChart(data) {
 
 function createPnlHeatmap(data) {
     const ctx = document.getElementById('pnlHeatmap').getContext('2d');
-    const dates = Object.keys(data);
-    const sessions = Object.keys(data[dates[0]]);
+    const books = Object.keys(data);
+    const sessions = ['ASIA', 'LONDON', 'NEW YORK', 'EOD'];
     
-    const heatmapData = dates.flatMap((date, i) => 
+    const heatmapData = books.flatMap((book, i) => 
         sessions.map((session, j) => ({
             x: j,
             y: i,
-            v: data[date][session] || 0
+            v: data[book][session] || 0
         }))
     );
 
     const minValue = Math.min(...heatmapData.map(d => d.v));
     const maxValue = Math.max(...heatmapData.map(d => d.v));
-    const colorScale = chroma.scale(['red', 'white', 'green']).domain([minValue, 0, maxValue]);
+    const colorScale = chroma.scale(['#FF4136', '#FFFFFF', '#2ECC40']).domain([minValue, 0, maxValue]);
 
     new Chart(ctx, {
         type: 'matrix',
@@ -1182,13 +1184,15 @@ function createPnlHeatmap(data) {
             datasets: [{
                 data: heatmapData,
                 backgroundColor: (context) => colorScale(context.dataset.data[context.dataIndex].v).hex(),
+                borderColor: '#000000',
+                borderWidth: 1,
                 width: (context) => {
                     const a = context.chart.chartArea || {};
                     return (a.right - a.left) / sessions.length - 1;
                 },
                 height: (context) => {
                     const a = context.chart.chartArea || {};
-                    return (a.bottom - a.top) / dates.length - 1;
+                    return (a.bottom - a.top) / books.length - 1;
                 }
             }]
         },
@@ -1201,7 +1205,7 @@ function createPnlHeatmap(data) {
                     callbacks: {
                         title: (context) => {
                             const d = context[0].dataset.data[context[0].dataIndex];
-                            return `${dates[d.y]} - ${sessions[d.x]}`;
+                            return `${books[d.y]} - ${sessions[d.x]}`;
                         },
                         label: (context) => {
                             return `PnL: ${context.dataset.data[context.dataIndex].v.toFixed(2)}`;
@@ -1210,18 +1214,26 @@ function createPnlHeatmap(data) {
                 },
                 title: {
                     display: true,
-                    text: 'PnL Performance Heatmap'
+                    text: 'PnL Performance Heatmap (Books vs Sessions)'
                 }
             },
             scales: {
                 x: {
                     ticks: {
                         callback: (value) => sessions[value]
+                    },
+                    title: {
+                        display: true,
+                        text: 'Sessions'
                     }
                 },
                 y: {
                     ticks: {
-                        callback: (value) => dates[value]
+                        callback: (value) => books[value]
+                    },
+                    title: {
+                        display: true,
+                        text: 'Books'
                     }
                 }
             }
@@ -1230,7 +1242,7 @@ function createPnlHeatmap(data) {
 
     // Create legend
     const legendContainer = document.getElementById('heatmapLegend');
-    const gradient = chroma.scale(['red', 'white', 'green']).colors(5);
+    const gradient = colorScale.colors(5);
     let legendHTML = '<div style="display: flex; justify-content: center; align-items: center;">';
     gradient.forEach((color, index) => {
         const value = minValue + (maxValue - minValue) * (index / (gradient.length - 1));
@@ -1243,29 +1255,44 @@ function createPnlHeatmap(data) {
     legendContainer.innerHTML = legendHTML;
 }
 
+function standardDeviation(values) {
+    const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const squareDiffs = values.map(value => Math.pow(value - avg, 2));
+    const avgSquareDiff = squareDiffs.reduce((sum, value) => sum + value, 0) / values.length;
+    return Math.sqrt(avgSquareDiff);
+}
+
 function createBookPerformanceChart(data) {
     const ctx = document.getElementById('bookPerformanceChart').getContext('2d');
     const books = Object.keys(data);
-    const totalPnl = books.map(book => Object.values(data[book]).reduce((sum, pnl) => sum + pnl, 0));
-    const frequency = books.map(book => Object.values(data[book]).filter(pnl => pnl !== 0).length);
-    const volatility = books.map(book => {
-        const pnlValues = Object.values(data[book]);
-        const mean = pnlValues.reduce((sum, pnl) => sum + pnl, 0) / pnlValues.length;
-        const squaredDiffs = pnlValues.map(pnl => Math.pow(pnl - mean, 2));
-        return Math.sqrt(squaredDiffs.reduce((sum, diff) => sum + diff, 0) / pnlValues.length);
+    
+    const bookPerformance = books.map(book => {
+        const { total_pnl, frequency, volatility } = data[book];
+        const avgPnl = total_pnl / frequency;
+        // We're using a simplified consistency measure here
+        const consistency = 1 / (1 + volatility / Math.abs(avgPnl));
+        
+        return {book, avgPnl, volatility, consistency, total_pnl};
     });
+
+    const maxAvgPnl = Math.max(...bookPerformance.map(b => Math.abs(b.avgPnl)));
+    const maxVolatility = Math.max(...bookPerformance.map(b => b.volatility));
 
     new Chart(ctx, {
         type: 'bubble',
         data: {
             datasets: [{
                 label: 'Book Performance',
-                data: books.map((book, i) => ({
-                    x: frequency[i],
-                    y: totalPnl[i],
-                    r: volatility[i] * 5  // Adjust the multiplier for better visualization
+                data: bookPerformance.map(b => ({
+                    x: b.consistency,
+                    y: b.avgPnl / maxAvgPnl,
+                    r: (b.volatility / maxVolatility) * 20 + 5,
+                    book: b.book,
+                    avgPnl: b.avgPnl,
+                    volatility: b.volatility,
+                    total_pnl: b.total_pnl
                 })),
-                backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                backgroundColor: bookPerformance.map(b => b.total_pnl > 0 ? 'rgba(75, 192, 192, 0.6)' : 'rgba(255, 99, 132, 0.6)')
             }]
         },
         options: {
@@ -1277,18 +1304,13 @@ function createBookPerformanceChart(data) {
                 },
                 tooltip: {
                     callbacks: {
-                        label: (context) => {
-                            const book = books[context.dataIndex];
-                            const freq = frequency[context.dataIndex];
-                            const pnl = totalPnl[context.dataIndex];
-                            const vol = volatility[context.dataIndex];
-                            return [
-                                `Book: ${book}`,
-                                `Frequency: ${freq}`,
-                                `Total PnL: ${pnl.toFixed(2)}`,
-                                `Volatility: ${vol.toFixed(2)}`
-                            ];
-                        }
+                        label: (context) => [
+                            `Book: ${context.raw.book}`,
+                            `Consistency: ${context.raw.x.toFixed(2)}`,
+                            `Avg PnL: ${context.raw.avgPnl.toFixed(2)}`,
+                            `Volatility: ${context.raw.volatility.toFixed(2)}`,
+                            `Total PnL: ${context.raw.total_pnl.toFixed(2)}`
+                        ]
                     }
                 }
             },
@@ -1296,13 +1318,18 @@ function createBookPerformanceChart(data) {
                 x: {
                     title: {
                         display: true,
-                        text: 'Frequency'
-                    }
+                        text: 'Consistency'
+                    },
+                    min: 0,
+                    max: 1
                 },
                 y: {
                     title: {
                         display: true,
-                        text: 'Total PnL'
+                        text: 'Average PnL (Normalized)'
+                    },
+                    ticks: {
+                        callback: (value) => (value * maxAvgPnl).toFixed(0)
                     }
                 }
             }
@@ -1310,48 +1337,100 @@ function createBookPerformanceChart(data) {
     });
 }
 
-function createPnlDistributionChart(data) {
-    const ctx = document.getElementById('pnlDistributionChart').getContext('2d');
-    const allPnl = Object.values(data).flatMap(book => Object.values(book));
-    const binSize = 1000; // Adjust this value to change the granularity of the histogram
-    const bins = {};
+function createPnlDistributionScatterChart(data) {
+    const ctx = document.getElementById('pnlDistributionScatterChart').getContext('2d');
+    const books = Object.keys(data);
 
-    allPnl.forEach(pnl => {
-        const binIndex = Math.floor(pnl / binSize);
-        bins[binIndex] = (bins[binIndex] || 0) + 1;
+    const datasets = books.map((book, index) => {
+        const pnls = Object.values(data[book]).filter(pnl => typeof pnl === 'number' && !isNaN(pnl));
+        return {
+            label: book,
+            data: pnls.map((pnl, i) => ({ x: i, y: pnl })),
+            backgroundColor: `hsla(${index * 20}, 70%, 60%, 0.6)`,
+            pointRadius: 5
+        };
     });
 
-    const sortedBins = Object.entries(bins).sort(([a], [b]) => parseFloat(a) - parseFloat(b));
-
     new Chart(ctx, {
-        type: 'bar',
+        type: 'scatter',
         data: {
-            labels: sortedBins.map(([bin]) => `${(parseFloat(bin) * binSize).toFixed(0)} - ${((parseFloat(bin) + 1) * binSize).toFixed(0)}`),
-            datasets: [{
-                label: 'PnL Distribution',
-                data: sortedBins.map(([, count]) => count),
-                backgroundColor: 'rgba(75, 192, 192, 0.6)'
-            }]
+            datasets: datasets
         },
         options: {
             responsive: true,
             plugins: {
                 title: {
                     display: true,
-                    text: 'PnL Distribution'
+                    text: 'PnL Distribution by Book (Scatter)'
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    position: 'bottom',
+                    title: {
+                        display: true,
+                        text: 'Observation'
+                    },
+                    ticks: {
+                        display: false
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'PnL'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function createPnlDistributionBarChart(data) {
+    const ctx = document.getElementById('pnlDistributionBarChart').getContext('2d');
+    const books = Object.keys(data);
+    const sessions = ['ASIA', 'LONDON', 'NEW YORK', 'EOD'];
+
+    const datasets = sessions.map((session, index) => ({
+        label: session,
+        data: books.map(book => data[book][session] || 0),
+        backgroundColor: `rgba(${index * 60}, ${255 - index * 60}, ${index * 60}, 0.6)`
+    }));
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: books,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'PnL Distribution by Book and Session'
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
                 }
             },
             scales: {
                 x: {
                     title: {
                         display: true,
-                        text: 'PnL Range'
+                        text: 'Books'
                     }
                 },
                 y: {
                     title: {
                         display: true,
-                        text: 'Frequency'
+                        text: 'PnL'
                     }
                 }
             }
@@ -1361,19 +1440,16 @@ function createPnlDistributionChart(data) {
 
 function createTopPerformersChart(data) {
     const ctx = document.getElementById('topPerformersChart').getContext('2d');
-    const books = Object.keys(data);
-    const totalPnl = books.map(book => Object.values(data[book]).reduce((sum, pnl) => sum + pnl, 0));
-    const sortedBooks = books.map((book, index) => ({ book, totalPnl: totalPnl[index] }))
-                             .sort((a, b) => b.totalPnl - a.totalPnl)
-                             .slice(0, 10);
+    const books = data.map(item => item.book);
+    const totalPnl = data.map(item => item.total_pnl);
 
     new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: sortedBooks.map(book => book.book),
+            labels: books,
             datasets: [{
                 label: 'Total PnL',
-                data: sortedBooks.map(book => book.totalPnl),
+                data: totalPnl,
                 backgroundColor: 'rgba(75, 192, 192, 0.6)'
             }]
         },
@@ -1404,12 +1480,23 @@ function createVisualizations() {
         .then(data => {
             createCumulativePnlChart(data.cumulative_pnl);
             createDailySessionPnlChart(data.daily_session_pnl);
-            createPnlHeatmap(data.daily_session_pnl);
-            createBookPerformanceChart(data.todays_pnl);
-            createPnlDistributionChart(data.todays_pnl);
-            createTopPerformersChart(data.todays_pnl);
+            createPnlHeatmap(data.todays_pnl);
+            createBookPerformanceChart(data.book_stats);
+            createPnlDistributionScatterChart(data.todays_pnl);
+            createPnlDistributionBarChart(data.todays_pnl);
+            createTopPerformersChart(data.top_performers);
         })
         .catch(error => console.error('Error fetching PNL data:', error));
 }
 
-document.addEventListener('DOMContentLoaded', createVisualizations);
+function initializeVisualization() {
+    createVisualizations();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('pnlForm')) {
+        initializePNLCollector();
+    } else {
+        initializeVisualization();
+    }
+});
