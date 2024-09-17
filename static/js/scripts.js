@@ -1176,15 +1176,16 @@ function createPnlHeatmap(data) {
 
     const minValue = Math.min(...heatmapData.map(d => d.v));
     const maxValue = Math.max(...heatmapData.map(d => d.v));
-    const colorScale = chroma.scale(['#FF4136', '#FFFFFF', '#2ECC40']).domain([minValue, 0, maxValue]);
+    const absMax = Math.max(Math.abs(minValue), Math.abs(maxValue));
+    const colorScale = chroma.scale(['#1e88e5', '#212121', '#43a047']).domain([-absMax, 0, absMax]).mode('lab');
 
     new Chart(ctx, {
         type: 'matrix',
         data: {
             datasets: [{
                 data: heatmapData,
-                backgroundColor: (context) => colorScale(context.dataset.data[context.dataIndex].v).hex(),
-                borderColor: '#000000',
+                backgroundColor: (context) => colorScale(context.dataset.data[context.dataIndex].v).alpha(0.7).css(),
+                borderColor: '#ffffff',
                 borderWidth: 1,
                 width: (context) => {
                     const a = context.chart.chartArea || {};
@@ -1198,7 +1199,16 @@ function createPnlHeatmap(data) {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: 1.5, // Match aspect ratio of other charts
+            layout: {
+                padding: {
+                    top: 20,
+                    right: 20,
+                    bottom: 20,
+                    left: 20
+                }
+            },
             plugins: {
                 legend: false,
                 tooltip: {
@@ -1214,46 +1224,88 @@ function createPnlHeatmap(data) {
                 },
                 title: {
                     display: true,
-                    text: 'PnL Performance Heatmap (Books vs Sessions)'
+                    text: 'PnL Performance Heatmap',
+                    font: {
+                        size: 18,
+                        weight: 'bold'
+                    },
+                    padding: {
+                        top: 10,
+                        bottom: 30
+                    }
                 }
             },
             scales: {
                 x: {
                     ticks: {
-                        callback: (value) => sessions[value]
+                        callback: (value) => sessions[value],
+                        font: {
+                            weight: 'bold'
+                        }
                     },
                     title: {
                         display: true,
-                        text: 'Sessions'
+                        text: 'Sessions',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        }
                     }
                 },
                 y: {
                     ticks: {
-                        callback: (value) => books[value]
+                        callback: (value) => books[value],
+                        font: {
+                            weight: 'bold'
+                        }
                     },
                     title: {
                         display: true,
-                        text: 'Books'
-                    }
+                        text: 'Books',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        }
+                    },
+                    reverse: true
                 }
             }
-        }
+        },
+        plugins: [{
+            id: 'customPlugin',
+            afterDraw: (chart) => {
+                const ctx = chart.ctx;
+                chart.data.datasets[0].data.forEach((datapoint, i) => {
+                    const position = chart.getDatasetMeta(0).data[i].getCenterPoint();
+                    const cellColor = colorScale(datapoint.v);
+                    ctx.fillStyle = cellColor.luminance() > 0.5 ? 'black' : 'white';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.font = '10px Arial'; // Match font with other charts
+                    const value = datapoint.v.toFixed(0);
+                    ctx.fillText(value, position.x, position.y);
+                });
+            }
+        }]
     });
 
     // Create legend
     const legendContainer = document.getElementById('heatmapLegend');
-    const gradient = colorScale.colors(5);
-    let legendHTML = '<div style="display: flex; justify-content: center; align-items: center;">';
+    const gradientSteps = 7;
+    const gradient = colorScale.colors(gradientSteps);
+    let legendHTML = '<div style="display: flex; justify-content: center; align-items: center; margin-top: 10px;">';
     gradient.forEach((color, index) => {
-        const value = minValue + (maxValue - minValue) * (index / (gradient.length - 1));
-        legendHTML += `<div style="background: ${color}; width: 50px; height: 20px;"></div>`;
-        if (index === 0 || index === gradient.length - 1) {
-            legendHTML += `<span style="margin: 0 10px;">${value.toFixed(2)}</span>`;
+        const value = -absMax + (2 * absMax / (gradientSteps - 1)) * index;
+        legendHTML += `<div style="background: ${color}; width: 40px; height: 20px;"></div>`;
+        if (index === 0 || index === gradient.length - 1 || index === Math.floor(gradient.length / 2)) {
+            legendHTML += `<span style="margin: 0 5px;">${value.toFixed(0)}</span>`;
         }
     });
     legendHTML += '</div>';
     legendContainer.innerHTML = legendHTML;
 }
+
+
 
 function standardDeviation(values) {
     const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -1269,10 +1321,10 @@ function createBookPerformanceChart(data) {
     const bookPerformance = books.map(book => {
         const { total_pnl, frequency, volatility } = data[book];
         const avgPnl = total_pnl / frequency;
-        // We're using a simplified consistency measure here
-        const consistency = 1 / (1 + volatility / Math.abs(avgPnl));
+        // Calculate Sharpe ratio (assuming risk-free rate is 0)
+        const sharpeRatio = avgPnl / volatility;
         
-        return {book, avgPnl, volatility, consistency, total_pnl};
+        return {book, avgPnl, volatility, sharpeRatio, total_pnl};
     });
 
     const maxAvgPnl = Math.max(...bookPerformance.map(b => Math.abs(b.avgPnl)));
@@ -1284,7 +1336,7 @@ function createBookPerformanceChart(data) {
             datasets: [{
                 label: 'Book Performance',
                 data: bookPerformance.map(b => ({
-                    x: b.consistency,
+                    x: b.sharpeRatio,
                     y: b.avgPnl / maxAvgPnl,
                     r: (b.volatility / maxVolatility) * 20 + 5,
                     book: b.book,
@@ -1306,7 +1358,7 @@ function createBookPerformanceChart(data) {
                     callbacks: {
                         label: (context) => [
                             `Book: ${context.raw.book}`,
-                            `Consistency: ${context.raw.x.toFixed(2)}`,
+                            `Sharpe Ratio: ${context.raw.x.toFixed(2)}`,
                             `Avg PnL: ${context.raw.avgPnl.toFixed(2)}`,
                             `Volatility: ${context.raw.volatility.toFixed(2)}`,
                             `Total PnL: ${context.raw.total_pnl.toFixed(2)}`
@@ -1318,10 +1370,8 @@ function createBookPerformanceChart(data) {
                 x: {
                     title: {
                         display: true,
-                        text: 'Consistency'
-                    },
-                    min: 0,
-                    max: 1
+                        text: 'Sharpe Ratio'
+                    }
                 },
                 y: {
                     title: {
@@ -1340,12 +1390,12 @@ function createBookPerformanceChart(data) {
 function createPnlDistributionScatterChart(data) {
     const ctx = document.getElementById('pnlDistributionScatterChart').getContext('2d');
     const books = Object.keys(data);
+    const sessions = ['ASIA', 'LONDON', 'NEW YORK', 'EOD'];
 
     const datasets = books.map((book, index) => {
-        const pnls = Object.values(data[book]).filter(pnl => typeof pnl === 'number' && !isNaN(pnl));
         return {
             label: book,
-            data: pnls.map((pnl, i) => ({ x: i, y: pnl })),
+            data: sessions.map((session, i) => ({ x: i, y: data[book][session] || 0 })),
             backgroundColor: `hsla(${index * 20}, 70%, 60%, 0.6)`,
             pointRadius: 5
         };
@@ -1361,7 +1411,7 @@ function createPnlDistributionScatterChart(data) {
             plugins: {
                 title: {
                     display: true,
-                    text: 'PnL Distribution by Book (Scatter)'
+                    text: 'PnL Distribution by Book and Session'
                 },
                 legend: {
                     display: true,
@@ -1370,14 +1420,11 @@ function createPnlDistributionScatterChart(data) {
             },
             scales: {
                 x: {
-                    type: 'linear',
-                    position: 'bottom',
+                    type: 'category',
+                    labels: sessions,
                     title: {
                         display: true,
-                        text: 'Observation'
-                    },
-                    ticks: {
-                        display: false
+                        text: 'Session'
                     }
                 },
                 y: {
