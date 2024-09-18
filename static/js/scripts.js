@@ -460,59 +460,62 @@ async function updateTableWithNewData(formData) {
     }
 
     // Update the child book
-    const childRow = Array.from(rows).find(row => {
-        const rowBook = row.getAttribute('data-book');
-        return rowBook === book;
-    });
+    const childRow = Array.from(rows).find(row => row.getAttribute('data-book') === book);
 
     if (childRow) {
         console.log('Child row found:', childRow);
-        const cell = childRow.querySelectorAll('.cell')[sessionIndex + 1];
-        const oldPnl = parseLargeNumber(cell.textContent);
-        const newPnl = parseFloat(pnl);
-        const difference = newPnl - oldPnl;
-        
-        await updateCell(cell, newPnl, explanation);
+        const cells = childRow.querySelectorAll('.cell');
+        if (cells.length > sessionIndex + 1) {
+            const cell = cells[sessionIndex + 1];
+            const oldPnl = parseLargeNumber(cell.textContent);
+            const newPnl = parseFloat(pnl);
+            const difference = newPnl - oldPnl;
+            
+            await updateCell(cell, newPnl, explanation);
 
-        // Update parent books
-        let currentRow = childRow;
-        let updatedRows = [childRow];
-        while (currentRow) {
-            const parentRow = Array.from(rows).find(row => {
-                return row.getAttribute('data-book') === currentRow.getAttribute('data-book').split('/').slice(0, -1).join('/');
-            });
-            if (parentRow) {
-                await updateParentBook(parentRow, sessionIndex, difference);
-                currentRow = parentRow;
-                updatedRows.push(parentRow);
-            } else {
-                break;
+            // Update parent books
+            let currentRow = childRow;
+            let updatedRows = [childRow];
+            while (currentRow) {
+                const parentRow = Array.from(rows).find(row => {
+                    return row.getAttribute('data-book') === currentRow.getAttribute('data-book').split('/').slice(0, -1).join('/');
+                });
+                if (parentRow) {
+                    await updateParentBook(parentRow, sessionIndex, difference);
+                    currentRow = parentRow;
+                    updatedRows.push(parentRow);
+                } else {
+                    break;
+                }
             }
+
+            await updateGlobalTotal();
+
+            // Add tooltips and highlight all updated rows
+            updatedRows.forEach(row => {
+                addTooltips(row);
+                const updatedCell = row.querySelectorAll('.cell')[sessionIndex + 1];
+                updatedCell.classList.add('updated');
+                setTimeout(() => {
+                    updatedCell.classList.remove('updated');
+                }, 2000);
+            });
+        } else {
+            console.error('Not enough cells in the row:', childRow);
         }
-
-        await updateGlobalTotal();
-
-        // Add tooltips and highlight all updated rows
-        updatedRows.forEach(row => {
-            addTooltips(row);
-            const updatedCell = row.querySelectorAll('.cell')[sessionIndex + 1];
-            updatedCell.classList.add('updated');
-            setTimeout(() => {
-                updatedCell.classList.remove('updated');
-            }, 2000);
-        });
     } else {
         console.error('Child row not found for book:', book);
-        console.log('Available rows:', Array.from(rows).map(row => ({
-            book: row.getAttribute('data-book'),
-            level: row.getAttribute('data-level')
-        })));
     }
     
     highlightMissingInputs();
 }
 
 async function updateCell(cell, value, explanation = '') {
+    if (cell.classList.contains('book-cell')) {
+        console.error('Attempted to update book cell instead of PNL cell');
+        return;
+    }
+
     cell.textContent = formatLargeNumber(value);
     cell.classList.remove('missing', 'warning', 'positive', 'negative', 'unusual-pnl', 'has-explanation');
     cell.classList.add('updated');
@@ -551,10 +554,15 @@ async function updateCell(cell, value, explanation = '') {
 }
 
 async function updateParentBook(parentRow, sessionIndex, difference) {
-    const parentCell = parentRow.querySelectorAll('.cell')[sessionIndex + 1];
-    const parentPnl = parseLargeNumber(parentCell.textContent);
-    const newParentPnl = parentPnl + difference;
-    await updateCell(parentCell, newParentPnl);
+    const cells = parentRow.querySelectorAll('.cell');
+    if (cells.length > sessionIndex + 1) {
+        const parentCell = cells[sessionIndex + 1];
+        const parentPnl = parseLargeNumber(parentCell.textContent);
+        const newParentPnl = parentPnl + difference;
+        await updateCell(parentCell, newParentPnl);
+    } else {
+        console.error('Not enough cells in parent row:', parentRow);
+    }
 }
 
 async function updateGlobalTotal() {
@@ -590,6 +598,7 @@ function formatLargeNumber(num) {
 
 function parseLargeNumber(str) {
     if (typeof str === 'number') return str;
+    if (!str || str === '-') return 0;
     str = str.replace(/,/g, '');
     let multiplier = 1;
     if (str.endsWith('K')) {
