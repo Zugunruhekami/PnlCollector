@@ -4,6 +4,29 @@ let showingPreviousEOD = false;
 let message;
 let loading;
 
+
+// modifications to make terminal compatible
+const pageType = (new URL(location.href)).searchParams.get('type');
+const hide = (selector) => {
+    document.querySelector(selector).style.display = 'none';
+    document.querySelector(selector).classList.add('hidden')
+}
+
+if (pageType) {
+    hide('.theme-toggle')
+    hide('.fancy-link-container')
+
+    if (pageType === 'form') {
+        hide('.visualization-container')
+        hide('filters')
+        hide('.last-updated')
+        hide('.container header h1')
+    } else {
+        hide ('.container')
+    }
+}
+
+
 // Main initialization function
 function initializePNLCollector() {
     const form = document.getElementById('pnlForm');
@@ -1552,6 +1575,12 @@ function initializeVisualization() {
 document.addEventListener('DOMContentLoaded', function() {
     if (document.getElementById('pnlForm')) {
         initializePNLCollector();
+        if (pageType === 'view') {
+            setInterval(() => {
+                console.log('!!!re-render PNL Table !!!')
+                initializePNLCollector();
+            }, 60000)
+        }
     } else {
         initializeVisualization();
     }
