@@ -9,6 +9,7 @@ import pandas as pd
 import os
 import json
 from fastapi.templating import Jinja2Templates
+import math
 
 app = FastAPI()
 
@@ -162,21 +163,21 @@ async def get_pnl_data(date: str = None):
     for _, row in selected_df.iterrows():
         if row['book'] not in pnl_dict:
             pnl_dict[row['book']] = {'ASIA': 0, 'LONDON': 0, 'NEW YORK': 0, 'EOD': 0, 'explanations': {}}
-        pnl_dict[row['book']][row['session']] = row['pnl']
+        pnl_dict[row['book']][row['session']] = float(row['pnl'])  # Ensure it's a Python float
         if pd.notna(row['explanation']):
-            pnl_dict[row['book']]['explanations'][row['session']] = row['explanation']
+            pnl_dict[row['book']]['explanations'][row['session']] = str(row['explanation'])  # Ensure it's a string
 
     # Calculate cumulative PNL (sum across days, not sessions)
     cumulative_pnl = df.groupby(['date', 'book']).last().groupby('book')['pnl'].cumsum().unstack()
     cumulative_pnl_dict = {
-        str(date): {book: float(pnl) for book, pnl in row.items()}
+        str(date): {book: float(pnl) if pd.notna(pnl) else 0 for book, pnl in row.items()}
         for date, row in cumulative_pnl.iterrows()
     }
 
     # Get daily session PNL (latest observation for each session)
     daily_session_pnl = df.sort_values('timestamp').groupby(['date', 'session']).last()['pnl'].unstack()
     daily_session_pnl_dict = {
-        str(date): {session: float(pnl) for session, pnl in row.items()}
+        str(date): {session: float(pnl) if pd.notna(pnl) else 0 for session, pnl in row.items()}
         for date, row in daily_session_pnl.iterrows()
     }
 
@@ -193,60 +194,31 @@ async def get_pnl_data(date: str = None):
     top_performers = book_stats.sort_values('total_pnl', ascending=False).head(10)
     top_performers_dict = top_performers.to_dict(orient='records')
 
-    return JSONResponse(content={
-        "daily_pnl": {str(selected_date): pnl_dict},
+    response_data = {
+        "daily_pnl": {str(selected_date): pnl_dict} if pnl_dict else {},
         "cumulative_pnl": cumulative_pnl_dict,
         "daily_session_pnl": daily_session_pnl_dict,
-        "last_updated": last_updated.isoformat(),
+        "last_updated": last_updated.isoformat() if pd.notna(last_updated) else None,
         "book_stats": book_stats_dict,
         "top_performers": top_performers_dict
-    })
-
-    # # PnL performance across books and days of the week
-    # heatmap_data = df.groupby(['book', 'day_of_week'])['pnl'].mean().unstack()
-    # heatmap_data_dict = {
-    #     book: [float(pnl) for pnl in row]
-    #     for book, row in heatmap_data.iterrows()
-    # }
-
-    # # Monthly performance of different books
-    # monthly_book_pnl = df.groupby(['month', 'book'])['pnl'].sum().unstack()
-    # monthly_book_pnl_dict = {
-    #     str(month): {book: float(pnl) for book, pnl in row.items()}
-    #     for month, row in monthly_book_pnl.iterrows()
-    # }
-
-    # # PnL, frequency, and volatility for each book
-    # book_stats = df.groupby('book').agg({
-    #     'pnl': ['sum', 'count', 'std']
-    # }).reset_index()
-    # book_stats.columns = ['book', 'total_pnl', 'frequency', 'volatility']
-    # book_stats_dict = book_stats.to_dict(orient='records')
-
-    # # Calculate overall statistics
-    # overall_stats = {
-    #     'total_pnl': float(df['pnl'].sum()),
-    #     'average_daily_pnl': float(df.groupby('date')['pnl'].sum().mean()),
-    #     'best_performing_book': book_stats.loc[book_stats['total_pnl'].idxmax(), 'book'],
-    #     'worst_performing_book': book_stats.loc[book_stats['total_pnl'].idxmin(), 'book'],
-    #     'best_performing_session': df.groupby('session')['pnl'].sum().idxmax(),
-    #     'worst_performing_session': df.groupby('session')['pnl'].sum().idxmin(),
-    # }
-
-
-    return JSONResponse(content={
-        "todays_pnl": todays_pnl_dict,
-        "cumulative_pnl": cumulative_pnl_dict,
-        "daily_session_pnl": daily_session_pnl_dict,
-        "last_updated": last_updated.isoformat(),
-
-        # "heatmap_data": heatmap_data_dict,
-        # "monthly_book_pnl": monthly_book_pnl_dict,
-        # "book_stats": book_stats_dict,
-        # "overall_stats": overall_stats,
     }
-)
 
+    # Replace inf and nan values before JSON serialization
+    sanitized_data = replace_inf_nan(response_data)
+
+    return JSONResponse(content=sanitized_data)
+
+def replace_inf_nan(obj):
+    if isinstance(obj, dict):
+        return {k: replace_inf_nan(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [replace_inf_nan(v) for v in obj]
+    elif isinstance(obj, float):
+        if math.isinf(obj):
+            return "Infinity" if obj > 0 else "-Infinity"
+        elif math.isnan(obj):
+            return None  # or you could use "NaN" if you prefer
+    return obj
 
 @app.get("/get_previous_day_eod")
 async def get_previous_day_eod():
