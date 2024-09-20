@@ -1115,9 +1115,21 @@ async function handleSuccessfulSubmission(data, formData) {
 
     const book = formData.book;
 
+    // Initialize pnlData if it doesn't exist
+    if (!pnlData) {
+        pnlData = {
+            daily_pnl: {}
+        };
+    }
+
+    // Initialize daily_pnl for the current date if it doesn't exist
+    if (!pnlData.daily_pnl[selectedDate]) {
+        pnlData.daily_pnl[selectedDate] = {};
+    }
+
     // Ensure the book exists in pnlData
-    if (!pnlData.todays_pnl[book]) {
-        pnlData.todays_pnl[book] = {
+    if (!pnlData.daily_pnl[selectedDate][book]) {
+        pnlData.daily_pnl[selectedDate][book] = {
             ASIA: 0,
             LONDON: 0,
             'NEW YORK': 0,
@@ -1127,14 +1139,14 @@ async function handleSuccessfulSubmission(data, formData) {
     }
 
     // Update the PNL for the book
-    pnlData.todays_pnl[book][formData.session] = formData.pnl;
+    pnlData.daily_pnl[selectedDate][book][formData.session] = formData.pnl;
 
     // Add explanation if provided
     if (formData.explanation) {
-        if (!pnlData.todays_pnl[book].explanations) {
-            pnlData.todays_pnl[book].explanations = {};
+        if (!pnlData.daily_pnl[selectedDate][book].explanations) {
+            pnlData.daily_pnl[selectedDate][book].explanations = {};
         }
-        pnlData.todays_pnl[book].explanations[formData.session] = formData.explanation;
+        pnlData.daily_pnl[selectedDate][book].explanations[formData.session] = formData.explanation;
     }
 
     // Update the table with new data

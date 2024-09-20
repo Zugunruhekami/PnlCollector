@@ -163,9 +163,9 @@ async def get_pnl_data(date: str = None):
     for _, row in selected_df.iterrows():
         if row['book'] not in pnl_dict:
             pnl_dict[row['book']] = {'ASIA': 0, 'LONDON': 0, 'NEW YORK': 0, 'EOD': 0, 'explanations': {}}
-        pnl_dict[row['book']][row['session']] = float(row['pnl'])  # Ensure it's a Python float
+        pnl_dict[row['book']][row['session']] = float(row['pnl'])
         if pd.notna(row['explanation']):
-            pnl_dict[row['book']]['explanations'][row['session']] = str(row['explanation'])  # Ensure it's a string
+            pnl_dict[row['book']]['explanations'][row['session']] = str(row['explanation'])
 
     # Calculate cumulative PNL (sum across days, not sessions)
     cumulative_pnl = df.groupby(['date', 'book']).last().groupby('book')['pnl'].cumsum().unstack()
@@ -195,7 +195,7 @@ async def get_pnl_data(date: str = None):
     top_performers_dict = top_performers.to_dict(orient='records')
 
     response_data = {
-        "daily_pnl": {str(selected_date): pnl_dict} if pnl_dict else {},
+        "daily_pnl": {str(selected_date): pnl_dict},
         "cumulative_pnl": cumulative_pnl_dict,
         "daily_session_pnl": daily_session_pnl_dict,
         "last_updated": last_updated.isoformat() if pd.notna(last_updated) else None,
@@ -203,22 +203,7 @@ async def get_pnl_data(date: str = None):
         "top_performers": top_performers_dict
     }
 
-    # Replace inf and nan values before JSON serialization
-    sanitized_data = replace_inf_nan(response_data)
-
-    return JSONResponse(content=sanitized_data)
-
-def replace_inf_nan(obj):
-    if isinstance(obj, dict):
-        return {k: replace_inf_nan(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [replace_inf_nan(v) for v in obj]
-    elif isinstance(obj, float):
-        if math.isinf(obj):
-            return "Infinity" if obj > 0 else "-Infinity"
-        elif math.isnan(obj):
-            return None  # or you could use "NaN" if you prefer
-    return obj
+    return JSONResponse(content=response_data)
 
 @app.get("/get_previous_day_eod")
 async def get_previous_day_eod():
