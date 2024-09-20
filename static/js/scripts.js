@@ -55,8 +55,9 @@ function initializePNLCollector() {
         field: datePickerInput,
         format: 'YYYY-MM-DD',
         onSelect: function(date) {
-            selectedDate = this.toString('YYYY-MM-DD');
+            selectedDate = formatDate(date);
             datePickerInput.value = selectedDate;
+            console.log("Selected date:", selectedDate);  // Debug log
             fetchPnLData().then(data => {
                 pnlData = data;
                 renderPnLTable();
@@ -65,14 +66,17 @@ function initializePNLCollector() {
         }
     });
 
+
     // Set initial date
     const initialDate = new Date();
+    selectedDate = formatDate(initialDate);
     picker.setDate(initialDate);
-    selectedDate = picker.toString('YYYY-MM-DD');
     datePickerInput.value = selectedDate;
+    console.log("Initial date:", selectedDate);  // Debug log
 
     // Open date picker when button is clicked
-    datePickerButton.addEventListener('click', function() {
+    datePickerButton.addEventListener('click', function(e) {
+        e.preventDefault();
         picker.show();
     });
 
@@ -193,17 +197,13 @@ async function renderPnLTable() {
         const bookOrder = ['G10', 'EM', 'PM', 'Onshore', 'Inventory'];
 
         // Render books in the specified order
-        const renderPromises = bookOrder.map(bookName => {
+        for (const bookName of bookOrder) {
             if (bookHierarchy[bookName]) {
-                return renderBookRow(bookHierarchy[bookName]);
+                await renderBookRow(bookHierarchy[bookName]);
             } else {
                 console.warn(`Book "${bookName}" not found in hierarchy`);
-                return Promise.resolve();
             }
-        });
-
-        // Wait for all book rows to be rendered
-        await Promise.all(renderPromises);
+        }
     }
 
     addRowGroupToggle();
@@ -739,10 +739,10 @@ function createBookHierarchy(data) {
             }
             if (index === parts.length - 1) {
                 current[part].pnl = {
-                    ASIA: bookData.ASIA,
-                    LONDON: bookData.LONDON,
-                    'NEW YORK': bookData['NEW YORK'],
-                    EOD: bookData.EOD
+                    ASIA: bookData.ASIA || 0,
+                    LONDON: bookData.LONDON || 0,
+                    'NEW YORK': bookData['NEW YORK'] || 0,
+                    EOD: bookData.EOD || 0
                 };
                 current[part].explanations = bookData.explanations || {};
             } else {
@@ -840,7 +840,7 @@ function highlightMissingInputs() {
                 console.log(`    Highlighting cell for ${session.name}`);
                 cell.classList.add('warning');
             } else {
-                console.log(`    Removing highlight for ${session.name}`);
+                // console.log(`    Removing highlight for ${session.name}`);
                 cell.classList.remove('warning');
             }
         });
@@ -873,18 +873,26 @@ function updateLastUpdated(timestamp) {
 }
 
 
+// Helper function to format date as YYYY-MM-DD
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
 
 // Add this new function to handle date changes
 async function handleDateChange(event) {
-    selectedDate = event.target.value;
+    selectedDate = formatDate(event.target.value);
     await fetchPnLData();
     renderPnLTable();
 }
 
-// Modify the fetchPnLData function
 async function fetchPnLData() {
     const response = await fetch(`/get_pnl_data?date=${selectedDate}`);
-    return await response.json();
+    const data = await response.json();
+    console.log("Fetched PNL data:", data);
+    return data;
 }
 
 async function fetchPreviousDayEOD() {
