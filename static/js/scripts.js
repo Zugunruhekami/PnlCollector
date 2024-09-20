@@ -812,17 +812,17 @@ function highlightMissingInputs() {
         const level = parseInt(row.getAttribute('data-level') || '0');
         const bookName = row.querySelector('.book-cell').textContent.trim();
         
-        console.log(`Processing row: ${bookName}, Level: ${level}`);
+        // console.log(`Processing row: ${bookName}, Level: ${level}`);
 
         if (parentBooks.includes(bookName)) {
-            console.log(`Skipping parent book: ${bookName}`);
+            // console.log(`Skipping parent book: ${bookName}`);
             return;
         }
 
         const cells = row.querySelectorAll('.cell:not(.book-cell)');
         cells.forEach((cell, index) => {
             const session = sessions[index];
-            console.log(`  Checking cell for session: ${session.name}`);
+            // console.log(`  Checking cell for session: ${session.name}`);
 
             const sessionHasPassed = (index < currentSessionIndex) || 
                 (index === currentSessionIndex && currentHour >= session.lunchTime);
@@ -833,8 +833,8 @@ function highlightMissingInputs() {
             const shouldHighlight = sessionHasPassed && !isEOD && 
                 (cell.textContent.trim() === '-' || cell.classList.contains('missing'));
 
-            console.log(`    Session passed: ${sessionHasPassed}, Current session: ${isCurrentSession}, Past lunch time: ${isPastLunchTime}`);
-            console.log(`    Should highlight: ${shouldHighlight}`);
+            // console.log(`    Session passed: ${sessionHasPassed}, Current session: ${isCurrentSession}, Past lunch time: ${isPastLunchTime}`);
+            // console.log(`    Should highlight: ${shouldHighlight}`);
 
             if (shouldHighlight) {
                 console.log(`    Highlighting cell for ${session.name}`);
