@@ -3,6 +3,7 @@ let pnlData = [];
 let showingPreviousEOD = false;
 let message;
 let loading;
+let highlightInterval;
 
 
 // modifications to make terminal compatible
@@ -750,43 +751,94 @@ function addRowGroupToggle() {
 }
 
 
+function isWeekend(date) {
+    const day = date.getUTCDay();
+    return day === 0 || day === 6; // 0 is Sunday, 6 is Saturday
+}
 
 function highlightMissingInputs() {
+    console.log("Starting highlightMissingInputs function");
+
     const now = new Date();
+    console.log(`Current time: ${now.toUTCString()}`);
+
     const sessions = [
-        { name: 'ASIA', start: 4, end: 10 },
-        { name: 'LONDON', start: 10, end: 16 },
-        { name: 'NEW YORK', start: 16, end: 22 },
-        { name: 'EOD', start: 22, end: 4 }
+        { name: 'ASIA', start: 1, end: 9, lunchTime: 5 },  // 9:00 AM - 5:00 PM HKT, lunch at 1:00 PM
+        { name: 'LONDON', start: 9, end: 17, lunchTime: 13 },  // 5:00 PM - 1:00 AM HKT, lunch at 9:00 PM
+        { name: 'NEW YORK', start: 17, end: 1, lunchTime: 21 },  // 1:00 AM - 9:00 AM HKT, lunch at 5:00 AM
+        { name: 'EOD', start: 23, end: 1 }  // 7:00 AM - 9:00 AM HKT
     ];
 
     const currentHour = now.getUTCHours();
+    const currentMinute = now.getUTCMinutes();
+    console.log(`Current time (HKT): ${currentHour}:${currentMinute}`);
+
     let currentSessionIndex = sessions.findIndex(session =>
         (session.start < session.end && currentHour >= session.start && currentHour < session.end) ||
         (session.start > session.end && (currentHour >= session.start || currentHour < session.end))
     );
 
-    if (currentSessionIndex === -1) currentSessionIndex = 0; // Default to ASIA if no current session
+    if (currentSessionIndex === -1) currentSessionIndex = 0;  // Default to ASIA if no current session
+    console.log(`Current session index: ${currentSessionIndex}, Session: ${sessions[currentSessionIndex].name}`);
+
+    const parentBooks = ['PM', 'Onshore', 'G10', 'Inventory', 'EM'];
 
     document.querySelectorAll('.book-row').forEach(row => {
-        if (row.getAttribute('data-level') === '0') return; // Skip parent book rows
+        const level = parseInt(row.getAttribute('data-level') || '0');
+        const bookName = row.querySelector('.book-cell').textContent.trim();
+        
+        console.log(`Processing row: ${bookName}, Level: ${level}`);
+
+        if (parentBooks.includes(bookName)) {
+            console.log(`Skipping parent book: ${bookName}`);
+            return;
+        }
+
         const cells = row.querySelectorAll('.cell:not(.book-cell)');
         cells.forEach((cell, index) => {
-            if (index <= currentSessionIndex) {
-                if (cell.textContent.trim() === '-' || cell.classList.contains('missing')) {
-                    cell.classList.add('warning');
-                } else {
-                    cell.classList.remove('warning');
-                }
+            const session = sessions[index];
+            console.log(`  Checking cell for session: ${session.name}`);
+
+            const sessionHasPassed = (index < currentSessionIndex) || 
+                (index === currentSessionIndex && currentHour >= session.lunchTime);
+            const isCurrentSession = index === currentSessionIndex;
+            const isEOD = session.name === 'EOD';
+            const isPastLunchTime = isCurrentSession && (currentHour > session.lunchTime || (currentHour === session.lunchTime && currentMinute > 0));
+            
+            const shouldHighlight = sessionHasPassed && !isEOD && 
+                (cell.textContent.trim() === '-' || cell.classList.contains('missing'));
+
+            console.log(`    Session passed: ${sessionHasPassed}, Current session: ${isCurrentSession}, Past lunch time: ${isPastLunchTime}`);
+            console.log(`    Should highlight: ${shouldHighlight}`);
+
+            if (shouldHighlight) {
+                console.log(`    Highlighting cell for ${session.name}`);
+                cell.classList.add('warning');
             } else {
+                console.log(`    Removing highlight for ${session.name}`);
                 cell.classList.remove('warning');
             }
         });
     });
+
+    console.log("Finished highlightMissingInputs function");
 }
 
+
 function startSessionCheck() {
-    setInterval(highlightMissingInputs, 60000); // Check every minute
+    console.log("Starting session check");
+    highlightMissingInputs(); // Call immediately on start
+    
+    // Clear any existing interval
+    if (highlightInterval) {
+        clearInterval(highlightInterval);
+    }
+    
+    // Set up a new interval
+    highlightInterval = setInterval(() => {
+        console.log("Interval triggered");
+        highlightMissingInputs();
+    }, 300000); // Call every 5 minutes
 }
 
 function updateLastUpdated(timestamp) {
