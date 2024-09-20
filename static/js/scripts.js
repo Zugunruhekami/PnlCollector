@@ -4,6 +4,7 @@ let showingPreviousEOD = false;
 let message;
 let loading;
 let highlightInterval;
+let selectedDate = new Date().toISOString().split('T')[0];
 
 
 // modifications to make terminal compatible
@@ -44,6 +45,36 @@ function initializePNLCollector() {
     if (form) {
         initializeUIElements();
     }
+
+ 
+    const datePickerInput = document.getElementById('datePicker');
+    const datePickerButton = document.getElementById('datePickerButton');
+
+    // Set up date picker
+    const picker = new Pikaday({
+        field: datePickerInput,
+        format: 'YYYY-MM-DD',
+        onSelect: function(date) {
+            selectedDate = this.toString('YYYY-MM-DD');
+            datePickerInput.value = selectedDate;
+            fetchPnLData().then(data => {
+                pnlData = data;
+                renderPnLTable();
+                applyFilters();
+            });
+        }
+    });
+
+    // Set initial date
+    const initialDate = new Date();
+    picker.setDate(initialDate);
+    selectedDate = picker.toString('YYYY-MM-DD');
+    datePickerInput.value = selectedDate;
+
+    // Open date picker when button is clicked
+    datePickerButton.addEventListener('click', function() {
+        picker.show();
+    });
 
     // Fetch initial PNL data
     fetchPnLData().then(data => {
@@ -127,25 +158,23 @@ function preprocessPnLData(data) {
 }
 
 async function renderPnLTable() {
-    const todayData = preprocessPnLData(pnlData.todays_pnl);
-    console.log("Today's data:", todayData);
+    const data = await fetchPnLData();
+    const selectedData = data.daily_pnl[selectedDate] || {};
+    console.log("Selected data:", selectedData);
 
-    if (Object.keys(todayData).length === 0) {
-        console.log("No data for today, initializing empty table");
+    if (Object.keys(selectedData).length === 0) {
+        console.log("No data for selected date, initializing empty table");
         initializeEmptyTable();
     } else {
-
-        // Modify the renderPnLTable function to include the EOD indicator in the header:
-
         const tableHeader = document.querySelector('.table-header');
         if (tableHeader) {
             const eodHeaderCell = tableHeader.querySelector('.header-cell:last-child');
             if (eodHeaderCell) {
-                eodHeaderCell.innerHTML = `EOD <span id="eodIndicator">(Today)</span>`;
+                eodHeaderCell.innerHTML = `EOD <span id="eodIndicator">(${selectedDate})</span>`;
             }
         }
 
-        const bookHierarchy = createBookHierarchy(todayData);
+        const bookHierarchy = createBookHierarchy(selectedData);
         const tableBody = document.getElementById('tableBody');
 
         if (!tableBody) {
@@ -175,18 +204,12 @@ async function renderPnLTable() {
 
         // Wait for all book rows to be rendered
         await Promise.all(renderPromises);
-
-        // Fetch and display previous day's EOD data
-        console.log("Fetching previous day EOD data");
-        const previousDayEOD = await fetchPreviousDayEOD();
-        console.log("Previous day EOD data:", previousDayEOD);
-        updateEODData(previousDayEOD, todayData);
     }
 
     addRowGroupToggle();
     highlightMissingInputs();
     applyFilters();
-    addTooltips();  // Add this back if you want to add all tooltips at once
+    addTooltips();
 }
 
 function updateEODData(previousDayEOD, todayData) {
@@ -289,7 +312,9 @@ function updateToggleButton() {
         console.error("Toggle button not found");
         return;
     }
-    toggleButton.textContent = showingPreviousEOD ? 'Show Today\'s EOD' : 'Show Previous Day EOD';
+    const buttonText = showingPreviousEOD ? 'Show Today\'s EOD' : 'Show Previous Day EOD';
+    const iconClass = showingPreviousEOD ? 'fa-undo' : 'fa-exchange-alt';
+    toggleButton.innerHTML = `<i class="fas ${iconClass}"></i> <span>${buttonText}</span>`;
     toggleButton.classList.toggle('showing-previous', showingPreviousEOD);
 }
 
@@ -849,9 +874,16 @@ function updateLastUpdated(timestamp) {
 
 
 
+// Add this new function to handle date changes
+async function handleDateChange(event) {
+    selectedDate = event.target.value;
+    await fetchPnLData();
+    renderPnLTable();
+}
 
+// Modify the fetchPnLData function
 async function fetchPnLData() {
-    const response = await fetch('/get_pnl_data');
+    const response = await fetch(`/get_pnl_data?date=${selectedDate}`);
     return await response.json();
 }
 

@@ -7,6 +7,8 @@
     <title>PNL Collector</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
+    <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
     <script src="https://unpkg.com/@popperjs/core@2"></script>
     <script src="https://unpkg.com/tippy.js@6"></script>
     <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light.css" />
@@ -90,33 +92,20 @@
         </div>
     </div>
 
-    <div class="visualization-container">
-        <h2>Today's PNL Aggregation</h2>
-        <button id="toggleEOD">Show Previous Day EOD</button>
-        <div id="pnlTable" class="pnl-table">
-            <div class="fancy-table">
-                <div class="table-header">
-                    <div class="header-cell">Book</div>
-                    <div class="header-cell">ASIA</div>
-                    <div class="header-cell">LONDON</div>
-                    <div class="header-cell">NEW YORK</div>
-                    <div class="header-cell">EOD <span id="eodIndicator">(Today)</span></div>
-                </div>
-                <div id="tableBody" class="table-body">
-                    <!-- Table rows will be dynamically inserted here -->
-                </div>
-            </div>
+<!-- Replace the existing visualization-container div with this -->
+<div class="visualization-container">
+    <h2>PNL Aggregation</h2>
+    <div class="controls">
+        <div class="date-picker-container">
+            <input type="text" id="datePicker" class="date-picker-input" readonly>
+            <button id="datePickerButton" class="date-picker-button">
+                <i class="fas fa-calendar-alt"></i>
+            </button>
         </div>
+        <button id="toggleEOD">
+            <i class="fas fa-exchange-alt"></i> <span>Show Previous Day EOD</span>
+        </button>
     </div>
-
-    <div id="lastUpdated" class="last-updated"></div>
-
-    <div class="theme-toggle">
-        <input type="checkbox" id="theme-switch" />
-        <label for="theme-switch">Dark Mode</label>
-    </div>
-
-    <!-- Add this inside the visualization-container div, before the pnlTable div -->
     <div class="filters">
         <select id="bookFilter">
             <option value="all">All Books</option>
@@ -132,6 +121,30 @@
             <option value="EOD">EOD</option>
         </select>
     </div>
+    <div id="pnlTable" class="pnl-table">
+        <div class="fancy-table">
+            <div class="table-header">
+                <div class="header-cell">Book</div>
+                <div class="header-cell">ASIA</div>
+                <div class="header-cell">LONDON</div>
+                <div class="header-cell">NEW YORK</div>
+                <div class="header-cell">EOD <span id="eodIndicator">(Today)</span></div>
+            </div>
+            <div id="tableBody" class="table-body">
+                <!-- Table rows will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+    <div id="lastUpdated" class="last-updated"></div>
+</div>
+
+
+    <div class="theme-toggle">
+        <input type="checkbox" id="theme-switch" />
+        <label for="theme-switch">Dark Mode</label>
+    </div>
+
+
 
     <!-- For client-side JavaScript -->
     <script>

@@ -143,26 +143,28 @@ async def visualization(request: Request):
     })
 
 @app.get("/get_pnl_data")
-async def get_pnl_data():
+async def get_pnl_data(date: str = None):
     df = pd.read_csv(CSV_FILE)
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df['date'] = df['timestamp'].dt.date
 
-    # Get today's date
-    today = datetime.now().date()
+    if date:
+        selected_date = pd.to_datetime(date).date()
+    else:
+        selected_date = datetime.now().date()
 
-    # Filter today's data and get the latest entry for each book and session
-    today_df = df[df['date'] == today].sort_values('timestamp')
-    today_df = today_df.groupby(['book', 'session']).last().reset_index()
+    # Filter data for the selected date and get the latest entry for each book and session
+    selected_df = df[df['date'] == selected_date].sort_values('timestamp')
+    selected_df = selected_df.groupby(['book', 'session']).last().reset_index()
 
-    # Create today's PNL data
-    todays_pnl_dict = {}
-    for _, row in today_df.iterrows():
-        if row['book'] not in todays_pnl_dict:
-            todays_pnl_dict[row['book']] = {'ASIA': 0, 'LONDON': 0, 'NEW YORK': 0, 'EOD': 0, 'explanations': {}}
-        todays_pnl_dict[row['book']][row['session']] = row['pnl']
+    # Create PNL data for the selected date
+    pnl_dict = {}
+    for _, row in selected_df.iterrows():
+        if row['book'] not in pnl_dict:
+            pnl_dict[row['book']] = {'ASIA': 0, 'LONDON': 0, 'NEW YORK': 0, 'EOD': 0, 'explanations': {}}
+        pnl_dict[row['book']][row['session']] = row['pnl']
         if pd.notna(row['explanation']):
-            todays_pnl_dict[row['book']]['explanations'][row['session']] = row['explanation']
+            pnl_dict[row['book']]['explanations'][row['session']] = row['explanation']
 
     # Calculate cumulative PNL (sum across days, not sessions)
     cumulative_pnl = df.groupby(['date', 'book']).last().groupby('book')['pnl'].cumsum().unstack()
@@ -192,7 +194,7 @@ async def get_pnl_data():
     top_performers_dict = top_performers.to_dict(orient='records')
 
     return JSONResponse(content={
-        "todays_pnl": todays_pnl_dict,
+        "daily_pnl": {str(selected_date): pnl_dict},
         "cumulative_pnl": cumulative_pnl_dict,
         "daily_session_pnl": daily_session_pnl_dict,
         "last_updated": last_updated.isoformat(),
