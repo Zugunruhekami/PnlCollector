@@ -160,12 +160,13 @@ async def get_pnl_data(date: str = None):
 
     # Create PNL data for the selected date
     pnl_dict = {}
+    for book in get_all_books():  # Use the get_all_books function to get all possible books
+        pnl_dict[book] = {'ASIA': 0, 'LONDON': 0, 'NEW YORK': 0, 'EOD': 0, 'explanations': {}}
+    
     for _, row in selected_df.iterrows():
-        if row['book'] not in pnl_dict:
-            pnl_dict[row['book']] = {'ASIA': 0, 'LONDON': 0, 'NEW YORK': 0, 'EOD': 0, 'explanations': {}}
-        pnl_dict[row['book']][row['session']] = float(row['pnl'])
+        pnl_dict[row['book']][row['session']] = row['pnl']
         if pd.notna(row['explanation']):
-            pnl_dict[row['book']]['explanations'][row['session']] = str(row['explanation'])
+            pnl_dict[row['book']]['explanations'][row['session']] = row['explanation']
 
     # Calculate cumulative PNL (sum across days, not sessions)
     cumulative_pnl = df.groupby(['date', 'book']).last().groupby('book')['pnl'].cumsum().unstack()

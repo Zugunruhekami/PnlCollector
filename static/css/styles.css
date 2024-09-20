@@ -95,6 +95,7 @@ h1 {
 /* Form styles */
 .pnl-form {
     background-color: var(--surface-color);
+    color: var(--text-color);
     padding: 2rem;
     border-radius: 15px;
     box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
@@ -145,6 +146,42 @@ select optgroup option {
     color: var(--text-color);
     padding-left: 15px;
 }
+
+.pnl-form select {
+  width: 100%;
+  padding: 0.75rem;
+  background-color: var(--surface-color);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  font-size: 1rem;
+  color: var(--text-color);
+  transition: all 0.3s ease;
+}
+
+.pnl-form select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(3, 218, 198, 0.2);
+}
+
+.pnl-form select option {
+  background-color: var(--surface-color);
+  color: var(--text-color);
+}
+
+.pnl-form select optgroup {
+  font-weight: bold;
+  color: var(--accent-color);
+  background-color: var(--surface-color);
+}
+
+.pnl-form select optgroup option {
+  font-weight: normal;
+  color: var(--text-color);
+  padding-left: 15px;
+  background-color: var(--surface-color);
+}
+
 
 /* Button styles */
 .submit-btn {
@@ -525,15 +562,7 @@ select optgroup option {
 }
 
 .cell.unusual-pnl::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border: 2px solid #FF4500;
-    border-radius: 4px;
-    pointer-events: none;
+  content: none;  /* Remove the second exclamation mark */
 }
 
 /* Previous EOD styles */
