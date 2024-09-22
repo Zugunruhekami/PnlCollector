@@ -194,7 +194,7 @@ async function renderPnLTable() {
         tableBody.appendChild(globalTotalRow);
 
         // Define the desired order of top-level books
-        const bookOrder = ['G10', 'EM', 'PM', 'Onshore', 'Inventory'];
+        const bookOrder = ['G10', 'EM', 'PM', 'Onshore', 'Management'];
 
         // Render books in the specified order
         for (const bookName of bookOrder) {
@@ -406,7 +406,7 @@ function addTooltips(element) {
     const applyTooltip = (cell) => {
         const level = parseInt(cell.closest('.book-row').getAttribute('data-level') || '0');
         const bookName = cell.closest('.book-row').getAttribute('data-book');
-        const isTopLevelBook = ['G10', 'PM', 'EM', 'Onshore', 'Inventory'].includes(bookName);
+        const isTopLevelBook = ['G10', 'PM', 'EM', 'Onshore', 'Management'].includes(bookName);
         const explanation = cell.getAttribute('data-explanation');
         const isUnusual = cell.classList.contains('unusual-pnl');
         let content = '';
@@ -806,7 +806,7 @@ function highlightMissingInputs() {
     if (currentSessionIndex === -1) currentSessionIndex = 0;  // Default to ASIA if no current session
     console.log(`Current session index: ${currentSessionIndex}, Session: ${sessions[currentSessionIndex].name}`);
 
-    const parentBooks = ['PM', 'Onshore', 'G10', 'Inventory', 'EM'];
+    const parentBooks = ['PM', 'Onshore', 'G10', 'Management', 'EM'];
 
     document.querySelectorAll('.book-row').forEach(row => {
         const level = parseInt(row.getAttribute('data-level') || '0');
