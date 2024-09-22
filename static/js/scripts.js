@@ -1740,7 +1740,7 @@ function createVisualizations() {
 function getTopPerformers(dailyData, count) {
     const bookTotals = Object.entries(dailyData).map(([book, sessions]) => ({
         book,
-        total_pnl: Object.values(sessions).reduce((sum, pnl) => sum + (typeof pnl === 'number' ? pnl : 0), 0)
+        total_pnl: sessions.EOD || sessions['NEW YORK'] || sessions.LONDON || sessions.ASIA || 0
     }));
     return bookTotals.sort((a, b) => b.total_pnl - a.total_pnl).slice(0, count);
 }

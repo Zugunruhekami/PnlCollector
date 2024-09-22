@@ -166,12 +166,37 @@ async def get_pnl_data(date: str = None):
         if pd.notna(row['explanation']):
             pnl_dict[row['book']]['explanations'][row['session']] = row['explanation']
 
-    # Calculate cumulative PNL (sum across days, not sessions)
-    cumulative_pnl = df.groupby(['date', 'book']).last().groupby('book')['pnl'].cumsum().unstack()
-    cumulative_pnl_dict = {
-        str(date): {book: float(pnl) if pd.notna(pnl) else 0 for book, pnl in row.items()}
-        for date, row in cumulative_pnl.iterrows()
-    }
+    # Function to get the last available PNL value for each day
+    def get_last_available_pnl(group):
+        for session in ['EOD', 'NEW YORK', 'LONDON', 'ASIA']:
+            if session in group['session'].values:
+                return group[group['session'] == session]['pnl'].iloc[0]
+        return np.nan
+
+    # Calculate cumulative PNL (using EOD or last available session)
+    daily_last_pnl = df.sort_values('timestamp').groupby(['date', 'book']).apply(get_last_available_pnl).reset_index(name='pnl')
+    
+    # Create cumulative_pnl_dict
+    cumulative_pnl_dict = {}
+    for date, group in daily_last_pnl.groupby('date'):
+        date_str = str(date)
+        cumulative_pnl_dict[date_str] = {}
+        for _, row in group.iterrows():
+            book = row['book']
+            pnl = row['pnl']
+            if date_str not in cumulative_pnl_dict:
+                cumulative_pnl_dict[date_str] = {}
+            if book not in cumulative_pnl_dict[date_str]:
+                cumulative_pnl_dict[date_str][book] = 0
+            cumulative_pnl_dict[date_str][book] += float(pnl)
+
+    # Calculate cumulative sum
+    for book in get_all_books():
+        cumulative_sum = 0
+        for date in sorted(cumulative_pnl_dict.keys()):
+            if book in cumulative_pnl_dict[date]:
+                cumulative_sum += cumulative_pnl_dict[date][book]
+                cumulative_pnl_dict[date][book] = cumulative_sum
 
     # Get daily session PNL (latest observation for each session)
     daily_session_pnl = df.sort_values('timestamp').groupby(['date', 'session']).last()['pnl'].unstack()
@@ -182,14 +207,14 @@ async def get_pnl_data(date: str = None):
 
     last_updated = df['timestamp'].max()
 
-    # Calculate book performance statistics
-    book_stats = df.groupby('book').agg({
+    # Calculate book performance statistics (using EOD or last available session)
+    book_stats = daily_last_pnl.groupby('book').agg({
         'pnl': ['sum', 'count', 'std']
     }).reset_index()
     book_stats.columns = ['book', 'total_pnl', 'frequency', 'volatility']
     book_stats_dict = book_stats.to_dict(orient='records')
 
-    # Calculate top performers
+    # Calculate top performers (using EOD or last available session)
     top_performers = book_stats.sort_values('total_pnl', ascending=False).head(10)
     top_performers_dict = top_performers.to_dict(orient='records')
 
