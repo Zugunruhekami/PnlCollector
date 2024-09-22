@@ -25,7 +25,7 @@ book_structure = {
         "India Onshore",
         "Malaysia Onshore"
     },
-    "Inventory": {
+    "Management": {
         "Desk Inventory",
         "Operational Books"
     }

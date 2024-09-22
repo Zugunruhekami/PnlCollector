@@ -1012,7 +1012,8 @@ async function handleFormSubmit(e) {
     console.log('Form submit event triggered');
 
     const book = document.getElementById('book').value;
-    const pnl = parseFloat(document.getElementById('pnl').value);
+    const pnlInput = document.getElementById('pnl').value;
+    const pnl = parsePNLInput(pnlInput);
     const session = document.getElementById('session').value;
     let explanation = document.getElementById('explanation').value;
 
@@ -1077,6 +1078,14 @@ async function handleFormSubmit(e) {
             showMessage('error', `An error occurred: ${error.message}`);
         }
     }
+}
+
+function parsePNLInput(input) {
+    input = input.trim().toLowerCase();
+    if (input.endsWith('k')) {
+        return parseFloat(input.slice(0, -1)) * 1000;
+    }
+    return parseFloat(input);
 }
 
 async function validateForm() {
