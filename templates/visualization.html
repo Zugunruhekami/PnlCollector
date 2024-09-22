@@ -36,28 +36,32 @@
     <section id="daily-analysis">
         <h2>Daily Analysis <span id="selectedDateDisplay"></span></h2>
         <div class="chart-container">
-            <h3>PnL Performance Heatmap</h3>
-            <canvas id="pnlHeatmap"></canvas>
-            <div id="heatmapLegend"></div>
+            <h3>Top 10 Performing Books (Selected Date)</h3>
+            <canvas id="dailyTopPerformersChart"></canvas>
         </div>
-        
-        <div class="chart-container">
-            <h3>PnL Distribution by Book and Session (Scatter)</h3>
-            <canvas id="pnlDistributionScatterChart"></canvas>
-        </div>
-        
         <div class="chart-container">
             <h3>PnL Distribution by Book and Session (Bar)</h3>
             <canvas id="pnlDistributionBarChart"></canvas>
         </div>
         <div class="chart-container">
-            <h3>Top 10 Performing Books (Selected Date)</h3>
-            <canvas id="dailyTopPerformersChart"></canvas>
+            <h3>PnL Distribution by Book and Session (Scatter)</h3>
+            <canvas id="pnlDistributionScatterChart"></canvas>
+        </div>        
+
+        <div class="chart-container">
+            <h3>PnL Performance Heatmap</h3>
+            <canvas id="pnlHeatmap"></canvas>
+            <div id="heatmapLegend"></div>
         </div>
+        
     </section>
 
     <section id="historical-analysis">
         <h2>Historical Analysis</h2>
+        <div class="chart-container">
+            <h3>Top 10 Performing Books (All-time)</h3>
+            <canvas id="historicalTopPerformersChart"></canvas>
+        </div>
         <div class="chart-container">
             <h3>Cumulative PnL Over Time</h3>
             <canvas id="cumulativePnlChart"></canvas>
@@ -73,10 +77,7 @@
             <canvas id="bookPerformanceChart"></canvas>
         </div>
         
-        <div class="chart-container">
-            <h3>Top 10 Performing Books (All-time)</h3>
-            <canvas id="historicalTopPerformersChart"></canvas>
-        </div>
+
     </section>
 
     <div class="fancy-link-container">

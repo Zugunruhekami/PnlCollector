@@ -1329,10 +1329,6 @@ function createDailySessionPnlChart(data) {
 }
 
 function createPnlHeatmap(data) {
-    if (!data || Object.keys(data).length === 0) {
-        console.warn('No data available for PNL heatmap');
-        return null;
-    }
     const ctx = document.getElementById('pnlHeatmap').getContext('2d');
     const books = Object.keys(data);
     const sessions = ['ASIA', 'LONDON', 'NEW YORK', 'EOD'];
@@ -1350,10 +1346,11 @@ function createPnlHeatmap(data) {
     const absMax = Math.max(Math.abs(minValue), Math.abs(maxValue));
     const colorScale = chroma.scale(['#1e88e5', '#212121', '#43a047']).domain([-absMax, 0, absMax]).mode('lab');
 
-    return new Chart(ctx, {
+    const chart = new Chart(ctx, {
         type: 'matrix',
         data: {
             datasets: [{
+                label: 'PNL Heatmap',
                 data: heatmapData,
                 backgroundColor: (context) => colorScale(context.dataset.data[context.dataIndex].v).alpha(0.7).css(),
                 borderColor: '#ffffff',
@@ -1370,94 +1367,48 @@ function createPnlHeatmap(data) {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: true,
-            aspectRatio: 1.5, // Match aspect ratio of other charts
-            layout: {
-                padding: {
-                    top: 20,
-                    right: 20,
-                    bottom: 20,
-                    left: 20
-                }
-            },
+            maintainAspectRatio: false,
             plugins: {
-                legend: false,
+                legend: {
+                    display: false
+                },
                 tooltip: {
                     callbacks: {
                         title: (context) => {
                             const d = context[0].dataset.data[context[0].dataIndex];
                             return `${books[d.y]} - ${sessions[d.x]}`;
                         },
-                        label: (context) => {
-                            return `PnL: ${context.dataset.data[context.dataIndex].v.toFixed(2)}`;
-                        }
+                        label: (context) => `PNL: ${context.dataset.data[context.dataIndex].v.toFixed(2)}`,
                     }
                 },
                 title: {
                     display: true,
-                    text: 'PnL Performance Heatmap',
-                    font: {
-                        size: 18,
-                        weight: 'bold'
-                    },
-                    padding: {
-                        top: 10,
-                        bottom: 30
-                    }
+                    text: 'PNL Performance Heatmap',
+                    font: { size: 18, weight: 'bold' }
                 }
             },
             scales: {
                 x: {
                     ticks: {
                         callback: (value) => sessions[value],
-                        font: {
-                            weight: 'bold'
-                        }
                     },
                     title: {
                         display: true,
-                        text: 'Sessions',
-                        font: {
-                            size: 14,
-                            weight: 'bold'
-                        }
+                        text: 'Sessions'
                     }
                 },
                 y: {
                     ticks: {
                         callback: (value) => books[value],
-                        font: {
-                            weight: 'bold'
-                        }
                     },
                     title: {
                         display: true,
-                        text: 'Books',
-                        font: {
-                            size: 14,
-                            weight: 'bold'
-                        }
+                        text: 'Books'
                     },
                     reverse: true
                 }
             }
-        },
-        plugins: [{
-            id: 'customPlugin',
-            afterDraw: (chart) => {
-                const ctx = chart.ctx;
-                chart.data.datasets[0].data.forEach((datapoint, i) => {
-                    const position = chart.getDatasetMeta(0).data[i].getCenterPoint();
-                    const cellColor = colorScale(datapoint.v);
-                    ctx.fillStyle = cellColor.luminance() > 0.5 ? 'black' : 'white';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.font = '10px Arial'; // Match font with other charts
-                    const value = datapoint.v.toFixed(0);
-                    ctx.fillText(value, position.x, position.y);
-                });
-            }
-        }]
+        }
     });
 
     // Create legend
@@ -1474,6 +1425,8 @@ function createPnlHeatmap(data) {
     });
     legendHTML += '</div>';
     legendContainer.innerHTML = legendHTML;
+
+    return chart;
 }
 
 
@@ -1487,15 +1440,14 @@ function standardDeviation(values) {
 
 function createBookPerformanceChart(data) {
     const ctx = document.getElementById('bookPerformanceChart').getContext('2d');
-    const books = Object.keys(data);
     
-    const bookPerformance = books.map(book => {
-        const { total_pnl, frequency, volatility } = data[book];
+    const bookPerformance = data.map(book => {
+        const { book: bookName, total_pnl, frequency, volatility } = book;
         const avgPnl = total_pnl / frequency;
         // Calculate Sharpe ratio (assuming risk-free rate is 0)
-        const sharpeRatio = avgPnl / volatility;
+        const sharpeRatio = volatility !== 0 ? avgPnl / volatility : 0;
         
-        return {book, avgPnl, volatility, sharpeRatio, total_pnl};
+        return {book: bookName, avgPnl, volatility, sharpeRatio, total_pnl};
     });
 
     const maxAvgPnl = Math.max(...bookPerformance.map(b => Math.abs(b.avgPnl)));
