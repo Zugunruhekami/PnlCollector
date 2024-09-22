@@ -5,18 +5,16 @@ import random
 # Modified book structure
 book_structure = {
     "EM": {
-        "Greater China",
         "ASEAN",
-        "C3",
-        "CEEMEA",
+        "Greater China",
+        "EMEA",
         "LATAM"
     },
     "G10": {
-        "EURO",
-        "Pacific G10",
-        "CAD",
-        "Scandies",
-        "Special Exotics"
+        "Eur Block",
+        "G10 Pacific & CAD",
+        "Special Exotics",
+        "eRisk"
     },
     "PM": {
         "Metals",
