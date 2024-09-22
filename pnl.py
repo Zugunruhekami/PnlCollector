@@ -205,32 +205,39 @@ async def get_pnl_data(date: str = None):
     return JSONResponse(content=response_data)
 
 @app.get("/get_previous_day_eod")
-async def get_previous_day_eod():
+async def get_previous_day_eod(date: str = None):
     df = pd.read_csv(CSV_FILE)
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df['date'] = df['timestamp'].dt.date
 
-    today = datetime.now().date()
-    yesterday = today - timedelta(days=1)
+    if date:
+        selected_date = pd.to_datetime(date).date()
+    else:
+        selected_date = datetime.now().date()
 
-    # Filter yesterday's data and get the latest entry for each book
-    yesterday_df = df[(df['date'] == yesterday) & (df['session'] == 'EOD')].sort_values('timestamp')
-    yesterday_df = yesterday_df.groupby('book').last().reset_index()
+    # Find the most recent previous day with data
+    previous_day = selected_date - timedelta(days=1)
+    while previous_day not in df['date'].unique() or previous_day.weekday() >= 5:
+        previous_day -= timedelta(days=1)
+
+    # Filter previous day's data and get the latest entry for each book
+    previous_day_df = df[(df['date'] == previous_day) & (df['session'] == 'EOD')].sort_values('timestamp')
+    previous_day_df = previous_day_df.groupby('book').last().reset_index()
 
     # Create previous day's EOD data
     previous_day_eod_dict = {}
-    for _, row in yesterday_df.iterrows():
+    for _, row in previous_day_df.iterrows():
         previous_day_eod_dict[row['book']] = {
             'EOD': row['pnl'],
             'explanations': {'EOD': row['explanation']} if pd.notna(row['explanation']) else {}
         }
 
-    last_updated = yesterday_df['timestamp'].max()
+    last_updated = previous_day_df['timestamp'].max()
 
     return JSONResponse(content={
         "previous_day_eod": previous_day_eod_dict,
-        "date": str(yesterday),
-        "last_updated": last_updated.isoformat() if last_updated else None
+        "date": str(previous_day),
+        "last_updated": last_updated.isoformat() if pd.notna(last_updated) else None
     })
 
 def is_unusual_pnl(book: str, pnl: float) -> bool:

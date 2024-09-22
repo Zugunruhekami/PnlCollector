@@ -54,18 +54,19 @@ function initializePNLCollector() {
     const picker = new Pikaday({
         field: datePickerInput,
         format: 'YYYY-MM-DD',
-        onSelect: function(date) {
+        onSelect: async function(date) {
             selectedDate = formatDate(date);
             datePickerInput.value = selectedDate;
-            console.log("Selected date:", selectedDate);  // Debug log
-            fetchPnLData().then(data => {
+            console.log("Selected date:", selectedDate);
+            showingPreviousEOD = false; // Reset to current day view
+            await fetchPnLData().then(data => {
                 pnlData = data;
                 renderPnLTable();
                 applyFilters();
             });
+            updateToggleButton();
         }
     });
-
 
     // Set initial date
     const initialDate = new Date();
@@ -163,6 +164,7 @@ function preprocessPnLData(data) {
 
 async function renderPnLTable() {
     const data = await fetchPnLData();
+    pnlData = data; // Store the entire data object
     const selectedData = data.daily_pnl[selectedDate] || {};
     console.log("Selected data:", selectedData);
 
@@ -312,8 +314,8 @@ function updateToggleButton() {
         console.error("Toggle button not found");
         return;
     }
-    const buttonText = showingPreviousEOD ? 'Show Today\'s EOD' : 'Show Previous Day EOD';
-    const iconClass = showingPreviousEOD ? 'fa-undo' : 'fa-exchange-alt';
+    const buttonText = showingPreviousEOD ? 'Current EOD' : 'Previous EOD';
+    const iconClass = showingPreviousEOD ? 'fa-forward' : 'fa-backward';
     toggleButton.innerHTML = `<i class="fas ${iconClass}"></i> <span>${buttonText}</span>`;
     toggleButton.classList.toggle('showing-previous', showingPreviousEOD);
 }
@@ -896,33 +898,45 @@ async function fetchPnLData() {
 }
 
 async function fetchPreviousDayEOD() {
-    const response = await fetch('/get_previous_day_eod');
+    const response = await fetch(`/get_previous_day_eod?date=${selectedDate}`);
     const data = await response.json();
     console.log("Previous day EOD data from server:", data);
-    return preprocessPnLData(data.previous_day_eod);
+    return {
+        data: preprocessPnLData(data.previous_day_eod),
+        date: data.date
+    };
 }
 
-function toggleEODDisplay() {
-    console.log("Toggling EOD display");
+function getPreviousWorkingDay(date) {
+    const d = new Date(date);
+    do {
+        d.setDate(d.getDate() - 1);
+    } while (d.getDay() === 0 || d.getDay() === 6);
+    return formatDate(d);
+}
+
+async function toggleEODDisplay() {
     showingPreviousEOD = !showingPreviousEOD;
-    const eodCells = document.querySelectorAll('.book-row .cell:last-child');
-    const eodHeader = document.querySelector('.table-header .header-cell:last-child');
-
-    eodCells.forEach(cell => {
-        const previousEOD = parseFloat(cell.getAttribute('data-previous-eod'));
-        const todayEOD = parseFloat(cell.getAttribute('data-today-eod'));
-
-        console.log(`Cell - Previous EOD: ${previousEOD}, Today's EOD: ${todayEOD}`);
-
-        updateEODCell(cell, previousEOD, todayEOD);
-    });
-
-    // Update the EOD header
-    if (eodHeader) {
-        eodHeader.innerHTML = `EOD <span id="eodIndicator">${showingPreviousEOD ? '(T-1)' : '(Today)'}</span>`;
-    }
-
+    await updateEODView();
     updateToggleButton();
+}
+
+async function updateEODView() {
+    if (showingPreviousEOD) {
+        const { data: previousDayEOD, date: previousDate } = await fetchPreviousDayEOD();
+        updateEODData(previousDayEOD, pnlData.daily_pnl[selectedDate]);
+        updateEODHeader(previousDate);
+    } else {
+        updateEODData(pnlData.daily_pnl[selectedDate], pnlData.daily_pnl[selectedDate]);
+        updateEODHeader(selectedDate);
+    }
+}
+
+function updateEODHeader(date) {
+    const eodHeader = document.querySelector('.table-header .header-cell:last-child');
+    if (eodHeader) {
+        eodHeader.innerHTML = `EOD <span id="eodIndicator">(${date})</span>`;
+    }
 }
 
 // Helper functions
