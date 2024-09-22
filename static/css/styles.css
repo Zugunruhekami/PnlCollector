@@ -812,15 +812,16 @@ body.dark-mode {
   margin-bottom: 2rem;
 }
 
+
 .chart-container {
   position: relative;
   width: 48%;
-  height: 60vh;
+  height: 70vh;  /* Increased height to accommodate the heatmap */
   background-color: rgba(255, 255, 255, 0.05);
   border-radius: 10px;
   padding: 1rem;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  margin-bottom: 40px; /* Space for legend */
+  margin-bottom: 60px; /* Increased space for legend */
 }
 
 .chart-container h3 {
@@ -829,19 +830,24 @@ body.dark-mode {
   color: var(--accent-color);
 }
 
-/* Heatmap legend styles */
+
+/* Specific style for the heatmap container */
+#pnlHeatmap {
+  height: calc(100% - 40px); /* Subtract space for the legend */
+}
+
 #heatmapLegend {
   position: absolute;
-  bottom: -30px;
+  bottom: -50px;  /* Moved further down */
   left: 50%;
   transform: translateX(-50%);
-  background-color: rgba(30, 41, 59, 0.8); /* Matches the visualization container background */
+  background-color: rgba(30, 41, 59, 0.8);
   padding: 5px 10px;
   border-radius: 5px;
   width: 100%;
   text-align: center;
-  color: var(--text-color); /* Ensures text is visible */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+  color: var(--text-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* Responsive design */

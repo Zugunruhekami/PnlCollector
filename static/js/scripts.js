@@ -1344,7 +1344,8 @@ function createPnlHeatmap(data) {
     const minValue = Math.min(...heatmapData.map(d => d.v));
     const maxValue = Math.max(...heatmapData.map(d => d.v));
     const absMax = Math.max(Math.abs(minValue), Math.abs(maxValue));
-    const colorScale = chroma.scale(['#1e88e5', '#212121', '#43a047']).domain([-absMax, 0, absMax]).mode('lab');
+    // Change the color scale to use red instead of blue
+    const colorScale = chroma.scale(['#ff0000', '#ffffff', '#00ff00']).domain([-absMax, 0, absMax]);
 
     const chart = new Chart(ctx, {
         type: 'matrix',
@@ -1384,7 +1385,11 @@ function createPnlHeatmap(data) {
                 title: {
                     display: true,
                     text: 'PNL Performance Heatmap',
-                    font: { size: 18, weight: 'bold' }
+                    font: { size: 18, weight: 'bold' },
+                    padding: {
+                        top: 10,
+                        bottom: 30  // Increase bottom padding to prevent overlap with chart
+                    }
                 }
             },
             scales: {
@@ -1399,7 +1404,10 @@ function createPnlHeatmap(data) {
                     },
                     title: {
                         display: true,
-                        text: 'Sessions'
+                        text: 'Sessions',
+                        padding: {
+                            top: 20  // Add padding to prevent overlap with chart
+                        }
                     }
                 },
                 y: {
@@ -1419,10 +1427,10 @@ function createPnlHeatmap(data) {
             },
             layout: {
                 padding: {
-                    left: 100,
+                    left: 70,   // Increase left padding for book names
                     right: 20,
-                    top: 20,
-                    bottom: 60
+                    top: 50,    // Increase top padding for title
+                    bottom: 30  // Increase bottom padding for session names
                 }
             }
         }
