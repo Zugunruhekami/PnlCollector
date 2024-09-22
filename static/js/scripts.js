@@ -5,7 +5,15 @@ let message;
 let loading;
 let highlightInterval;
 let selectedDate = new Date().toISOString().split('T')[0];
-
+let charts = {
+    cumulativePnl: null,
+    dailySessionPnl: null,
+    pnlHeatmap: null,
+    bookPerformance: null,
+    pnlDistributionScatter: null,
+    pnlDistributionBar: null,
+    topPerformers: null
+};
 
 // modifications to make terminal compatible
 const pageType = (new URL(location.href)).searchParams.get('type');
@@ -1267,14 +1275,14 @@ function applyFilters() {
 function createCumulativePnlChart(data) {
     const ctx = document.getElementById('cumulativePnlChart').getContext('2d');
     const dates = Object.keys(data);
-    const books = Object.keys(data[dates[0]]);
+    const books = Object.keys(data[dates[0]] || {});
     const datasets = books.map(book => ({
         label: book,
         data: dates.map(date => data[date][book]),
         fill: false
     }));
 
-    new Chart(ctx, {
+    return new Chart(ctx, {
         type: 'line',
         data: {
             labels: dates,
@@ -1302,7 +1310,7 @@ function createDailySessionPnlChart(data) {
         fill: false
     }));
 
-    new Chart(ctx, {
+    return new Chart(ctx, {
         type: 'line',
         data: {
             labels: dates,
@@ -1321,6 +1329,10 @@ function createDailySessionPnlChart(data) {
 }
 
 function createPnlHeatmap(data) {
+    if (!data || Object.keys(data).length === 0) {
+        console.warn('No data available for PNL heatmap');
+        return null;
+    }
     const ctx = document.getElementById('pnlHeatmap').getContext('2d');
     const books = Object.keys(data);
     const sessions = ['ASIA', 'LONDON', 'NEW YORK', 'EOD'];
@@ -1338,7 +1350,7 @@ function createPnlHeatmap(data) {
     const absMax = Math.max(Math.abs(minValue), Math.abs(maxValue));
     const colorScale = chroma.scale(['#1e88e5', '#212121', '#43a047']).domain([-absMax, 0, absMax]).mode('lab');
 
-    new Chart(ctx, {
+    return new Chart(ctx, {
         type: 'matrix',
         data: {
             datasets: [{
@@ -1489,7 +1501,7 @@ function createBookPerformanceChart(data) {
     const maxAvgPnl = Math.max(...bookPerformance.map(b => Math.abs(b.avgPnl)));
     const maxVolatility = Math.max(...bookPerformance.map(b => b.volatility));
 
-    new Chart(ctx, {
+    return new Chart(ctx, {
         type: 'bubble',
         data: {
             datasets: [{
@@ -1560,7 +1572,7 @@ function createPnlDistributionScatterChart(data) {
         };
     });
 
-    new Chart(ctx, {
+    return new Chart(ctx, {
         type: 'scatter',
         data: {
             datasets: datasets
@@ -1608,7 +1620,7 @@ function createPnlDistributionBarChart(data) {
         backgroundColor: `rgba(${index * 60}, ${255 - index * 60}, ${index * 60}, 0.6)`
     }));
 
-    new Chart(ctx, {
+    return new Chart(ctx, {
         type: 'bar',
         data: {
             labels: books,
@@ -1644,12 +1656,12 @@ function createPnlDistributionBarChart(data) {
     });
 }
 
-function createTopPerformersChart(data) {
-    const ctx = document.getElementById('topPerformersChart').getContext('2d');
+function createTopPerformersChart(data, canvasId, title) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
     const books = data.map(item => item.book);
     const totalPnl = data.map(item => item.total_pnl);
 
-    new Chart(ctx, {
+    return new Chart(ctx, {
         type: 'bar',
         data: {
             labels: books,
@@ -1665,7 +1677,7 @@ function createTopPerformersChart(data) {
             plugins: {
                 title: {
                     display: true,
-                    text: 'Top 10 Performing Books'
+                    text: title
                 }
             },
             scales: {
@@ -1680,23 +1692,119 @@ function createTopPerformersChart(data) {
     });
 }
 
+
+function updateChart(chartId, createChartFunction, data) {
+    const canvas = document.getElementById(chartId);
+    if (!canvas) {
+        console.error(`Canvas with id ${chartId} not found`);
+        return;
+    }
+
+    // Destroy existing chart
+    if (charts[chartId]) {
+        charts[chartId].destroy();
+        charts[chartId] = null;
+    }
+
+    // Clear the canvas
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Create new chart
+    charts[chartId] = createChartFunction(data);
+}
+
+
 function createVisualizations() {
-    fetch('/get_pnl_data')
+    fetch(`/get_pnl_data?date=${selectedDate}`)
         .then(response => response.json())
         .then(data => {
-            createCumulativePnlChart(data.cumulative_pnl);
-            createDailySessionPnlChart(data.daily_session_pnl);
-            createPnlHeatmap(data.todays_pnl);
-            createBookPerformanceChart(data.book_stats);
-            createPnlDistributionScatterChart(data.todays_pnl);
-            createPnlDistributionBarChart(data.todays_pnl);
-            createTopPerformersChart(data.top_performers);
+            // Update selected date display
+            document.getElementById('selectedDateDisplay').textContent = `(${selectedDate})`;
+
+            // Daily Analysis
+            updateChart('pnlHeatmap', createPnlHeatmap, data.daily_pnl[selectedDate]);
+            updateChart('pnlDistributionScatterChart', createPnlDistributionScatterChart, data.daily_pnl[selectedDate]);
+            updateChart('pnlDistributionBarChart', createPnlDistributionBarChart, data.daily_pnl[selectedDate]);
+            updateChart('dailyTopPerformersChart', (data) => createTopPerformersChart(data, 'dailyTopPerformersChart', 'Top 10 Performing Books (Selected Date)'), getTopPerformers(data.daily_pnl[selectedDate], 10));
+
+            // Historical Analysis
+            updateChart('cumulativePnlChart', createCumulativePnlChart, data.cumulative_pnl);
+            updateChart('dailySessionPnlChart', createDailySessionPnlChart, data.daily_session_pnl);
+            updateChart('bookPerformanceChart', createBookPerformanceChart, data.book_stats);
+            updateChart('historicalTopPerformersChart', (data) => createTopPerformersChart(data, 'historicalTopPerformersChart', 'Top 10 Performing Books (All-time)'), data.top_performers);
         })
         .catch(error => console.error('Error fetching PNL data:', error));
 }
 
+function getTopPerformers(dailyData, count) {
+    const bookTotals = Object.entries(dailyData).map(([book, sessions]) => ({
+        book,
+        total_pnl: Object.values(sessions).reduce((sum, pnl) => sum + (typeof pnl === 'number' ? pnl : 0), 0)
+    }));
+    return bookTotals.sort((a, b) => b.total_pnl - a.total_pnl).slice(0, count);
+}
+
+function initializeVisualizationDatePicker() {
+    const datePickerInput = document.getElementById('datePicker');
+    const datePickerButton = document.getElementById('datePickerButton');
+
+    if (!datePickerInput || !datePickerButton) return;
+
+    const picker = new Pikaday({
+        field: datePickerInput,
+        format: 'YYYY-MM-DD',
+        onSelect: function(date) {
+            selectedDate = formatDate(date);
+            datePickerInput.value = selectedDate;
+            console.log("Selected date:", selectedDate);
+            createVisualizations();
+        }
+    });
+
+    // Set initial date
+    const initialDate = new Date();
+    selectedDate = formatDate(initialDate);
+    picker.setDate(initialDate);
+    datePickerInput.value = selectedDate;
+
+    // Open date picker when button is clicked
+    datePickerButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        picker.show();
+    });
+}
+
+function initializeNavigation() {
+    const navButtons = document.querySelectorAll('.nav-button');
+    navButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-target');
+            document.querySelectorAll('section').forEach(section => {
+                section.style.display = section.id === targetId ? 'block' : 'none';
+            });
+            navButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+
+    // Show Daily Analysis by default
+    document.getElementById('daily-analysis').style.display = 'block';
+    document.querySelector('[data-target="daily-analysis"]').classList.add('active');
+}
+
 function initializeVisualization() {
+    // Clear any existing charts
+    Object.values(charts).forEach(chart => {
+        if (chart) {
+            chart.destroy();
+        }
+    });
+    charts = {};
+    initializeVisualizationDatePicker();
+    createFloatingBackgroundElements();
     createVisualizations();
+    initializeNavigation();
 }
 
 document.addEventListener('DOMContentLoaded', function() {

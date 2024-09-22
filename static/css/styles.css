@@ -778,3 +778,42 @@ body.dark-mode {
     margin-left: auto;
     margin-right: auto;
 }
+
+.chart-navigation {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.nav-button {
+  background-color: #4CAF50;
+  border: none;
+  color: white;
+  padding: 10px 20px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  margin: 4px 2px;
+  transition-duration: 0.4s;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.nav-button:hover {
+  background-color: #45a049;
+}
+
+.nav-button.active {
+  background-color: #45a049;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+section {
+  margin-bottom: 40px;
+}
+
+.chart-container {
+  margin-bottom: 30px;
+}
+

@@ -5,50 +5,79 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PNL Visualization</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.1.1/dist/chartjs-chart-matrix.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.1.2/chroma.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
 </head>
 <body>
-    <div class="background"></div>
+    <div class="background">
+        <!-- Add floating background elements here -->
+    </div>
     <h1>PNL Visualization</h1>
 
-    <div class="chart-container">
-        <h2>Cumulative PnL Over Time</h2>
-        <canvas id="cumulativePnlChart"></canvas>
+
+    <div class="controls">
+        <div class="date-picker-container">
+            <input type="text" id="datePicker" class="date-picker-input" readonly>
+            <button id="datePickerButton" class="date-picker-button">
+                <i class="fas fa-calendar-alt"></i>
+            </button>
+        </div>
     </div>
-    
-    <div class="chart-container">
-        <h2>Daily Session PnL Comparison</h2>
-        <canvas id="dailySessionPnlChart"></canvas>
-    </div>
-    
-    <div class="chart-container">
-        <h2>PnL Performance Heatmap</h2>
-        <canvas id="pnlHeatmap"></canvas>
-    </div>
-    <div id="heatmapLegend"></div>
-    
-    <div class="chart-container">
-        <h2>Book Performance Overview</h2>
-        <canvas id="bookPerformanceChart"></canvas>
-    </div>
-    
-    <div class="chart-container">
-        <h2>PnL Distribution Chart (Scatter)</h2>
-        <canvas id="pnlDistributionScatterChart"></canvas>
-    </div>
-    
-    <div class="chart-container">
-        <h2>PnL Distribution Chart (Bar)</h2>
-        <canvas id="pnlDistributionBarChart"></canvas>
-    </div>
-    
-    <div class="chart-container">
-        <h2>Top Performers Chart</h2>
-        <canvas id="topPerformersChart"></canvas>
-    </div>
+    <nav class="chart-navigation">
+        <button class="nav-button" data-target="daily-analysis">Daily Analysis</button>
+        <button class="nav-button" data-target="historical-analysis">Historical Analysis</button>
+    </nav>
+
+    <section id="daily-analysis">
+        <h2>Daily Analysis <span id="selectedDateDisplay"></span></h2>
+        <div class="chart-container">
+            <h3>PnL Performance Heatmap</h3>
+            <canvas id="pnlHeatmap"></canvas>
+            <div id="heatmapLegend"></div>
+        </div>
+        
+        <div class="chart-container">
+            <h3>PnL Distribution by Book and Session (Scatter)</h3>
+            <canvas id="pnlDistributionScatterChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+            <h3>PnL Distribution by Book and Session (Bar)</h3>
+            <canvas id="pnlDistributionBarChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Top 10 Performing Books (Selected Date)</h3>
+            <canvas id="dailyTopPerformersChart"></canvas>
+        </div>
+    </section>
+
+    <section id="historical-analysis">
+        <h2>Historical Analysis</h2>
+        <div class="chart-container">
+            <h3>Cumulative PnL Over Time</h3>
+            <canvas id="cumulativePnlChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+            <h3>Daily Session PnL Comparison</h3>
+            <canvas id="dailySessionPnlChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+            <h3>Book Performance Overview</h3>
+            <canvas id="bookPerformanceChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+            <h3>Top 10 Performing Books (All-time)</h3>
+            <canvas id="historicalTopPerformersChart"></canvas>
+        </div>
+    </section>
 
     <div class="fancy-link-container">
         <a href="/" class="fancy-link" data-page="home">
