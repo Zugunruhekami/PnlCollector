@@ -1391,6 +1391,11 @@ function createPnlHeatmap(data) {
                 x: {
                     ticks: {
                         callback: (value) => sessions[value],
+                        autoSkip: false,
+                        maxRotation: 0,
+                        font: {
+                            size: 10
+                        }
                     },
                     title: {
                         display: true,
@@ -1400,12 +1405,24 @@ function createPnlHeatmap(data) {
                 y: {
                     ticks: {
                         callback: (value) => books[value],
+                        autoSkip: false,
+                        font: {
+                            size: 10
+                        }
                     },
                     title: {
                         display: true,
                         text: 'Books'
                     },
                     reverse: true
+                }
+            },
+            layout: {
+                padding: {
+                    left: 100,
+                    right: 20,
+                    top: 20,
+                    bottom: 60
                 }
             }
         }
@@ -1415,12 +1432,12 @@ function createPnlHeatmap(data) {
     const legendContainer = document.getElementById('heatmapLegend');
     const gradientSteps = 7;
     const gradient = colorScale.colors(gradientSteps);
-    let legendHTML = '<div style="display: flex; justify-content: center; align-items: center; margin-top: 10px;">';
+    let legendHTML = '<div style="display: flex; justify-content: center; align-items: center;">';
     gradient.forEach((color, index) => {
         const value = -absMax + (2 * absMax / (gradientSteps - 1)) * index;
-        legendHTML += `<div style="background: ${color}; width: 40px; height: 20px;"></div>`;
+        legendHTML += `<div style="background: ${color}; width: 40px; height: 20px; border: 1px solid #ffffff;"></div>`;
         if (index === 0 || index === gradient.length - 1 || index === Math.floor(gradient.length / 2)) {
-            legendHTML += `<span style="margin: 0 5px;">${value.toFixed(0)}</span>`;
+            legendHTML += `<span style="margin: 0 5px; color: var(--text-color);">${value.toFixed(0)}</span>`;
         }
     });
     legendHTML += '</div>';
@@ -1666,25 +1683,27 @@ function updateChart(chartId, createChartFunction, data) {
     charts[chartId] = createChartFunction(data);
 }
 
-
 function createVisualizations() {
     fetch(`/get_pnl_data?date=${selectedDate}`)
         .then(response => response.json())
         .then(data => {
-            // Update selected date display
-            document.getElementById('selectedDateDisplay').textContent = `(${selectedDate})`;
+            // Update selected date display if the element exists
+            const selectedDateDisplay = document.getElementById('selectedDateDisplay');
+            if (selectedDateDisplay) {
+                selectedDateDisplay.textContent = `(${selectedDate})`;
+            }
 
             // Daily Analysis
-            updateChart('pnlHeatmap', createPnlHeatmap, data.daily_pnl[selectedDate]);
-            updateChart('pnlDistributionScatterChart', createPnlDistributionScatterChart, data.daily_pnl[selectedDate]);
-            updateChart('pnlDistributionBarChart', createPnlDistributionBarChart, data.daily_pnl[selectedDate]);
             updateChart('dailyTopPerformersChart', (data) => createTopPerformersChart(data, 'dailyTopPerformersChart', 'Top 10 Performing Books (Selected Date)'), getTopPerformers(data.daily_pnl[selectedDate], 10));
+            updateChart('pnlDistributionBarChart', createPnlDistributionBarChart, data.daily_pnl[selectedDate]);
+            updateChart('pnlDistributionScatterChart', createPnlDistributionScatterChart, data.daily_pnl[selectedDate]);
+            updateChart('pnlHeatmap', createPnlHeatmap, data.daily_pnl[selectedDate]);
 
             // Historical Analysis
+            updateChart('historicalTopPerformersChart', (data) => createTopPerformersChart(data, 'historicalTopPerformersChart', 'Top 10 Performing Books (All-time)'), data.top_performers);
             updateChart('cumulativePnlChart', createCumulativePnlChart, data.cumulative_pnl);
             updateChart('dailySessionPnlChart', createDailySessionPnlChart, data.daily_session_pnl);
             updateChart('bookPerformanceChart', createBookPerformanceChart, data.book_stats);
-            updateChart('historicalTopPerformersChart', (data) => createTopPerformersChart(data, 'historicalTopPerformersChart', 'Top 10 Performing Books (All-time)'), data.top_performers);
         })
         .catch(error => console.error('Error fetching PNL data:', error));
 }
@@ -1728,22 +1747,36 @@ function initializeVisualizationDatePicker() {
 }
 
 function initializeNavigation() {
-    const navButtons = document.querySelectorAll('.nav-button');
-    navButtons.forEach(button => {
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabButtons.forEach(button => {
         button.addEventListener('click', function() {
-            const targetId = this.getAttribute('data-target');
-            document.querySelectorAll('section').forEach(section => {
-                section.style.display = section.id === targetId ? 'block' : 'none';
+            const tabName = this.getAttribute('data-tab');
+            
+            // Hide all tab contents and deactivate all buttons
+            tabContents.forEach(content => {
+                content.style.display = 'none';
             });
-            navButtons.forEach(btn => btn.classList.remove('active'));
+            tabButtons.forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show the selected tab content and activate the button
+            document.getElementById(tabName).style.display = 'block';
             this.classList.add('active');
+
+            // Trigger a resize event to make sure charts render correctly
+            window.dispatchEvent(new Event('resize'));
         });
     });
 
-    // Show Daily Analysis by default
-    document.getElementById('daily-analysis').style.display = 'block';
-    document.querySelector('[data-target="daily-analysis"]').classList.add('active');
+    // Show Overview tab by default
+    document.getElementById('overview').style.display = 'block';
+    document.querySelector('[data-tab="overview"]').classList.add('active');
 }
+
+
 
 function initializeVisualization() {
     // Clear any existing charts
