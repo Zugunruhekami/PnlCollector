@@ -1301,31 +1301,72 @@ function createCumulativePnlChart(data) {
 }
 
 function createDailySessionPnlChart(data) {
-    const ctx = document.getElementById('dailySessionPnlChart').getContext('2d');
+    const canvas = document.getElementById('dailySessionPnlChart');
+    const ctx = canvas.getContext('2d');
     const dates = Object.keys(data);
     const sessions = Object.keys(data[dates[0]]);
-    const datasets = sessions.map(session => ({
-        label: session,
-        data: dates.map(date => data[date][session]),
-        fill: false
-    }));
+    
+    function createDatasets(chartType) {
+        return sessions.map((session, index) => ({
+            label: session,
+            data: dates.map(date => data[date][session]),
+            fill: false,
+            tension: 0.1,
+            backgroundColor: chartType === 'bar' ? `hsla(${index * 60}, 70%, 60%, 0.6)` : undefined,
+            borderColor: chartType === 'line' ? `hsl(${index * 60}, 70%, 60%)` : undefined
+        }));
+    }
 
-    return new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: dates,
-            datasets: datasets
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Daily Session PnL Comparison'
+    function createChartConfig(chartType) {
+        return {
+            type: chartType,
+            data: {
+                labels: dates,
+                datasets: createDatasets(chartType)
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: `Daily Session PnL Comparison (${chartType.charAt(0).toUpperCase() + chartType.slice(1)} Chart)`
+                    },
+                    legend: {
+                        position: 'top',
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Date'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'PnL'
+                        }
+                    }
                 }
             }
-        }
-    });
+        };
+    }
+
+    let chart = new Chart(ctx, createChartConfig('line'));
+
+    // Add event listener to the toggle button
+    const toggleButton = document.getElementById('toggleDailySessionChartType');
+    if (toggleButton) {
+        toggleButton.addEventListener('click', () => {
+            const newType = chart.config.type === 'line' ? 'bar' : 'line';
+            chart.destroy(); // Destroy the existing chart
+            Chart.getChart(canvas)?.destroy(); // Ensure any lingering chart instance is destroyed
+            chart = new Chart(ctx, createChartConfig(newType));
+        });
+    }
+
+    return chart;
 }
 
 function createPnlHeatmap(data) {
@@ -1683,12 +1724,23 @@ function updateChart(chartId, createChartFunction, data) {
         charts[chartId] = null;
     }
 
+    // Ensure any lingering chart instance is destroyed
+    Chart.getChart(canvas)?.destroy();
+
     // Clear the canvas
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Create new chart
     charts[chartId] = createChartFunction(data);
+
+    // If it's the daily session chart, make sure the toggle button is visible
+    if (chartId === 'dailySessionPnlChart') {
+        const toggleButton = document.getElementById('toggleDailySessionChartType');
+        if (toggleButton) {
+            toggleButton.style.display = 'block';
+        }
+    }
 }
 
 function createVisualizations() {
