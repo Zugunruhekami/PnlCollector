@@ -1861,7 +1861,7 @@ function createVisualizations() {
         console.error('Chart.js is not loaded. Visualizations cannot be created.');
         return;
     }
-    
+
     fetch(`/get_pnl_data?date=${selectedDate}`)
         .then(response => response.json())
         .then(data => {
@@ -1953,11 +1953,13 @@ function initializeNavigation() {
     document.querySelector('[data-tab="overview"]').classList.add('active');
 }
 
-
+function isChartJsLoaded() {
+    return typeof Chart !== 'undefined';
+}
 
 function initializeVisualization() {
-    if (typeof Chart === 'undefined') {
-        console.error('Chart.js is not loaded. Charts will not be initialized.');
+    if (!isChartJsLoaded()) {
+        console.error('Chart.js is not loaded. Visualizations will not be initialized.');
         return;
     }
 
