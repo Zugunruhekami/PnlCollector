@@ -1271,6 +1271,9 @@ function applyFilters() {
 
 // charts start here
 
+let dailySessionChartType = 'line';
+let aggregatedCumulativeData, aggregatedDailySessionData, originalCumulativeData, originalDailySessionData;
+
 function getWeekStart(date) {
     const d = new Date(date);
     d.setUTCDate(d.getUTCDate() - d.getUTCDay());
@@ -1310,19 +1313,73 @@ function aggregateData(data, aggregationType) {
     return aggregatedData;
 }
 
-
 function createHistoricalCharts(cumulativeData, dailySessionData) {
     const chartIds = ['cumulativePnlChart', 'dailySessionPnlChart'];
     const dates = Object.keys(cumulativeData).sort();
     const books = Object.keys(cumulativeData[dates[0]] || {});
     const sessions = Object.keys(dailySessionData[dates[0]] || {});
 
-    let aggregationType = 'day';
-    let aggregatedCumulativeData = cumulativeData;
-    let aggregatedDailySessionData = dailySessionData;
+    // Store the original data
+    originalCumulativeData = cumulativeData;
+    originalDailySessionData = dailySessionData;
 
-    // Common options for both charts
-    const commonOptions = {
+    // Initialize aggregated data
+    aggregatedCumulativeData = cumulativeData;
+    aggregatedDailySessionData = dailySessionData;
+
+    chartIds.forEach((chartId, index) => {
+        if (!charts[chartId]) {
+            const canvas = document.getElementById(chartId);
+            const ctx = canvas.getContext('2d');
+            
+            charts[chartId] = new Chart(ctx, {
+                type: index === 1 ? dailySessionChartType : 'line',
+                data: { datasets: [] },
+                options: getChartOptions(index === 0 ? 'Cumulative PnL Over Time' : 'Daily Session PnL Comparison')
+            });
+        }
+    });
+
+    updateHistoricalCharts(aggregatedCumulativeData, aggregatedDailySessionData);
+    setupChartControls(dates);
+}
+
+function updateHistoricalCharts(cumulativeData, dailySessionData) {
+    const dates = Object.keys(cumulativeData).sort();
+    const books = Object.keys(cumulativeData[dates[0]] || {});
+    const sessions = Object.keys(dailySessionData[dates[0]] || {});
+
+    charts['cumulativePnlChart'].data.datasets = createDatasets(cumulativeData, books, false);
+    charts['dailySessionPnlChart'].data.datasets = createDatasets(dailySessionData, sessions, true);
+    charts['dailySessionPnlChart'].options.plugins.title.text = `Daily Session PnL Comparison (${dailySessionChartType.charAt(0).toUpperCase() + dailySessionChartType.slice(1)} Chart)`;
+
+    charts['cumulativePnlChart'].update();
+    charts['dailySessionPnlChart'].update();
+}
+
+function createDatasets(data, labels, isDaily = false) {
+    console.log('Creating datasets. Chart type:', dailySessionChartType);
+    return labels.map((label, index) => ({
+        label,
+        data: Object.entries(data).map(([date, values]) => ({ 
+            x: new Date(date), 
+            y: values[label] 
+        })),
+        fill: false,
+        borderWidth: 1,
+        pointRadius: dailySessionChartType === 'line' ? 0 : 3,
+        pointHoverRadius: 5,
+        backgroundColor: `hsla(${index * 60}, 70%, 60%, 0.6)`,
+        borderColor: `hsl(${index * 60}, 70%, 60%)`,
+        ...(dailySessionChartType === 'bar' && {
+            barPercentage: 0.8,
+            categoryPercentage: 0.9
+        })
+    }));
+}
+
+function getChartOptions(titleText) {
+    return {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
@@ -1334,7 +1391,10 @@ function createHistoricalCharts(cumulativeData, dailySessionData) {
                 },
                 title: { display: true, text: 'Date' }
             },
-            y: { title: { display: true, text: 'PnL' } }
+            y: { 
+                title: { display: true, text: 'PnL' },
+                stacked: false  // Ensure y-axis is not stacked for bar chart
+            }
         },
         plugins: {
             zoom: {
@@ -1345,68 +1405,16 @@ function createHistoricalCharts(cumulativeData, dailySessionData) {
                     mode: 'x'
                 }
             },
-            legend: { display: true, position: 'top' }
+            legend: { display: true, position: 'top' },
+            title: {
+                display: true,
+                text: titleText
+            }
         }
     };
+}
 
-    function createDatasets(data, labels, isDaily = false) {
-        return labels.map((label, index) => ({
-            label,
-            data: Object.entries(data).map(([date, values]) => ({ 
-                x: new Date(date), 
-                y: values[label] 
-            })),
-            fill: false,
-            borderWidth: 1,
-            pointRadius: 0,
-            pointHoverRadius: 5,
-            ...(isDaily && {
-                backgroundColor: `hsla(${index * 60}, 70%, 60%, 0.6)`,
-                borderColor: `hsl(${index * 60}, 70%, 60%)`
-            })
-        }));
-    }
-
-    function updateCharts() {
-        chartIds.forEach((chartId, index) => {
-            const chart = charts[chartId];
-            const data = index === 0 ? aggregatedCumulativeData : aggregatedDailySessionData;
-            const labels = index === 0 ? books : sessions;
-            
-            chart.data.datasets = createDatasets(data, labels, index === 1);
-            chart.options.scales.x.time.unit = aggregationType;
-            chart.update();
-        });
-    }
-
-    // Create or update charts
-    chartIds.forEach((chartId, index) => {
-        const canvas = document.getElementById(chartId);
-        const ctx = canvas.getContext('2d');
-        
-        if (charts[chartId]) {
-            charts[chartId].destroy();
-        }
-
-        const data = index === 0 ? cumulativeData : dailySessionData;
-        const labels = index === 0 ? books : sessions;
-        
-        charts[chartId] = new Chart(ctx, {
-            type: 'line',
-            data: { datasets: createDatasets(data, labels, index === 1) },
-            options: {
-                ...commonOptions,
-                plugins: {
-                    ...commonOptions.plugins,
-                    title: {
-                        display: true,
-                        text: index === 0 ? 'Cumulative PnL Over Time' : 'Daily Session PnL Comparison'
-                    }
-                }
-            }
-        });
-    });
-
+function setupChartControls(dates) {
     // Remove existing controls if any
     const existingControls = document.querySelector('#historical .chart-controls');
     if (existingControls) {
@@ -1442,27 +1450,21 @@ function createHistoricalCharts(cumulativeData, dailySessionData) {
     `;
     document.querySelector('#historical').insertBefore(controlsContainer, document.querySelector('#historical .chart-row'));
 
-    // Event listeners for controls
+    setupControlEventListeners();
+}
+
+function setupControlEventListeners() {
+    // Existing event listeners
     document.getElementById('resetZoom').addEventListener('click', () => {
-        chartIds.forEach(chartId => charts[chartId].resetZoom());
+        Object.values(charts).forEach(chart => chart.resetZoom());
     });
 
     document.getElementById('timeAggregation').addEventListener('change', (e) => {
-        aggregationType = e.target.value;
-        aggregatedCumulativeData = aggregateData(cumulativeData, aggregationType);
-        aggregatedDailySessionData = aggregateData(dailySessionData, aggregationType);
-        updateCharts();
+        const aggregationType = e.target.value;
+        aggregatedCumulativeData = aggregateData(originalCumulativeData, aggregationType);
+        aggregatedDailySessionData = aggregateData(originalDailySessionData, aggregationType);
+        updateHistoricalCharts(aggregatedCumulativeData, aggregatedDailySessionData);
     });
-
-    function applyDateRange() {
-        const startDate = new Date(document.getElementById('startDate').value);
-        const endDate = new Date(document.getElementById('endDate').value);
-        chartIds.forEach(chartId => {
-            charts[chartId].options.scales.x.min = startDate;
-            charts[chartId].options.scales.x.max = endDate;
-            charts[chartId].update();
-        });
-    }
 
     ['startDate', 'endDate'].forEach(id => {
         const input = document.getElementById(id);
@@ -1488,11 +1490,38 @@ function createHistoricalCharts(cumulativeData, dailySessionData) {
     const toggleButton = document.getElementById('toggleDailySessionChartType');
     if (toggleButton) {
         toggleButton.addEventListener('click', () => {
+            console.log('Toggle button clicked. Current type:', dailySessionChartType);
+            
+            dailySessionChartType = dailySessionChartType === 'line' ? 'bar' : 'line';
+            console.log('New chart type:', dailySessionChartType);
+            
             const chart = charts['dailySessionPnlChart'];
-            chart.config.type = chart.config.type === 'line' ? 'bar' : 'line';
+            if (!chart) {
+                console.error('dailySessionPnlChart not found in charts object');
+                return;
+            }
+            
+            chart.config.type = dailySessionChartType;
+            chart.options.plugins.title.text = `Daily Session PnL Comparison (${dailySessionChartType.charAt(0).toUpperCase() + dailySessionChartType.slice(1)} Chart)`;
+            
+            // Update the datasets
+            chart.data.datasets = createDatasets(aggregatedDailySessionData, Object.keys(aggregatedDailySessionData[Object.keys(aggregatedDailySessionData)[0]] || {}), true);
+            
             chart.update();
+            
+            console.log('Chart updated to:', dailySessionChartType);
         });
     }
+}
+
+function applyDateRange() {
+    const startDate = new Date(document.getElementById('startDate').value);
+    const endDate = new Date(document.getElementById('endDate').value);
+    Object.values(charts).forEach(chart => {
+        chart.options.scales.x.min = startDate;
+        chart.options.scales.x.max = endDate;
+        chart.update();
+    });
 }
 
 function createPnlHeatmap(data) {
@@ -1878,8 +1907,11 @@ function createVisualizations() {
             updateChart('pnlHeatmap', createPnlHeatmap, data.daily_pnl[selectedDate]);
 
             // Historical Analysis
-            updateChart('historicalTopPerformersChart', (data) => createTopPerformersChart(data, 'historicalTopPerformersChart', 'Top 10 Performing Books (All-time)'), data.top_performers);
-            createHistoricalCharts(data.cumulative_pnl, data.daily_session_pnl);
+            if (charts['cumulativePnlChart'] && charts['dailySessionPnlChart']) {
+                updateHistoricalCharts(data.cumulative_pnl, data.daily_session_pnl);
+            } else {
+                createHistoricalCharts(data.cumulative_pnl, data.daily_session_pnl);
+            }
             updateChart('bookPerformanceChart', createBookPerformanceChart, data.book_stats);
         })
         .catch(error => console.error('Error fetching PNL data:', error));
