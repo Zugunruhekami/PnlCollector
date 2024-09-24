@@ -1313,45 +1313,14 @@ function aggregateData(data, aggregationType) {
 
 
 function createHistoricalCharts(cumulativeData, dailySessionData) {
-    const cumulativeCanvas = document.getElementById('cumulativePnlChart');
-    const dailySessionCanvas = document.getElementById('dailySessionPnlChart');
-    
-    // Destroy existing charts if they exist
-    if (charts['cumulativePnlChart']) {
-        charts['cumulativePnlChart'].destroy();
-    }
-    if (charts['dailySessionPnlChart']) {
-        charts['dailySessionPnlChart'].destroy();
-    }
-
-    const cumulativeCtx = cumulativeCanvas.getContext('2d');
-    const dailySessionCtx = dailySessionCanvas.getContext('2d');
-    
+    const chartIds = ['cumulativePnlChart', 'dailySessionPnlChart'];
     const dates = Object.keys(cumulativeData).sort();
     const books = Object.keys(cumulativeData[dates[0]] || {});
     const sessions = Object.keys(dailySessionData[dates[0]] || {});
 
-    // Create datasets for cumulative chart
-    const cumulativeDatasets = books.map(book => ({
-        label: book,
-        data: dates.map(date => ({ x: new Date(date), y: cumulativeData[date][book] })),
-        fill: false,
-        borderWidth: 1,
-        pointRadius: 0,
-        pointHoverRadius: 5
-    }));
-
-    // Create datasets for daily session chart
-    const dailySessionDatasets = sessions.map((session, index) => ({
-        label: session,
-        data: dates.map(date => ({ x: new Date(date), y: dailySessionData[date][session] })),
-        fill: false,
-        borderWidth: 1,
-        pointRadius: 0,
-        pointHoverRadius: 5,
-        backgroundColor: `hsla(${index * 60}, 70%, 60%, 0.6)`,
-        borderColor: `hsl(${index * 60}, 70%, 60%)`
-    }));
+    let aggregationType = 'day';
+    let aggregatedCumulativeData = cumulativeData;
+    let aggregatedDailySessionData = dailySessionData;
 
     // Common options for both charts
     const commonOptions = {
@@ -1362,119 +1331,81 @@ function createHistoricalCharts(cumulativeData, dailySessionData) {
                 type: 'time',
                 time: {
                     unit: 'day',
-                    displayFormats: {
-                        day: 'MMM d, yyyy'
-                    }
+                    displayFormats: { day: 'MMM d, yyyy' }
                 },
-                title: {
-                    display: true,
-                    text: 'Date'
-                }
+                title: { display: true, text: 'Date' }
             },
-            y: {
-                title: {
-                    display: true,
-                    text: 'PnL'
-                }
-            }
+            y: { title: { display: true, text: 'PnL' } }
         },
         plugins: {
             zoom: {
-                pan: {
-                    enabled: true,
-                    mode: 'x'
-                },
+                pan: { enabled: true, mode: 'x' },
                 zoom: {
-                    wheel: {
-                        enabled: true
-                    },
-                    pinch: {
-                        enabled: true
-                    },
+                    wheel: { enabled: true },
+                    pinch: { enabled: true },
                     mode: 'x'
                 }
             },
-            legend: {
-                display: true,
-                position: 'top'
-            }
+            legend: { display: true, position: 'top' }
         }
     };
 
-    
-    let aggregationType = 'day';
-    let aggregatedCumulativeData = cumulativeData;
-    let aggregatedDailySessionData = dailySessionData;
-
-    function updateCharts() {
-        const cumulativeDatasets = books.map(book => ({
-            label: book,
-            data: Object.entries(aggregatedCumulativeData).map(([date, values]) => ({ 
+    function createDatasets(data, labels, isDaily = false) {
+        return labels.map((label, index) => ({
+            label,
+            data: Object.entries(data).map(([date, values]) => ({ 
                 x: new Date(date), 
-                y: values[book] 
-            })),
-            fill: false,
-            borderWidth: 1,
-            pointRadius: 0,
-            pointHoverRadius: 5
-        }));
-
-        const dailySessionDatasets = sessions.map((session, index) => ({
-            label: session,
-            data: Object.entries(aggregatedDailySessionData).map(([date, values]) => ({ 
-                x: new Date(date), 
-                y: values[session] 
+                y: values[label] 
             })),
             fill: false,
             borderWidth: 1,
             pointRadius: 0,
             pointHoverRadius: 5,
-            backgroundColor: `hsla(${index * 60}, 70%, 60%, 0.6)`,
-            borderColor: `hsl(${index * 60}, 70%, 60%)`
+            ...(isDaily && {
+                backgroundColor: `hsla(${index * 60}, 70%, 60%, 0.6)`,
+                borderColor: `hsl(${index * 60}, 70%, 60%)`
+            })
         }));
-
-        charts['cumulativePnlChart'].data.datasets = cumulativeDatasets;
-        charts['dailySessionPnlChart'].data.datasets = dailySessionDatasets;
-
-        charts['cumulativePnlChart'].options.scales.x.time.unit = aggregationType;
-        charts['dailySessionPnlChart'].options.scales.x.time.unit = aggregationType;
-
-        charts['cumulativePnlChart'].update();
-        charts['dailySessionPnlChart'].update();
     }
 
+    function updateCharts() {
+        chartIds.forEach((chartId, index) => {
+            const chart = charts[chartId];
+            const data = index === 0 ? aggregatedCumulativeData : aggregatedDailySessionData;
+            const labels = index === 0 ? books : sessions;
+            
+            chart.data.datasets = createDatasets(data, labels, index === 1);
+            chart.options.scales.x.time.unit = aggregationType;
+            chart.update();
+        });
+    }
 
-    
-    // Create cumulative chart
-    charts['cumulativePnlChart'] = new Chart(cumulativeCtx, {
-        type: 'line',
-        data: { datasets: cumulativeDatasets },
-        options: {
-            ...commonOptions,
-            plugins: {
-                ...commonOptions.plugins,
-                title: {
-                    display: true,
-                    text: 'Cumulative PnL Over Time'
+    // Create or update charts
+    chartIds.forEach((chartId, index) => {
+        const canvas = document.getElementById(chartId);
+        const ctx = canvas.getContext('2d');
+        
+        if (charts[chartId]) {
+            charts[chartId].destroy();
+        }
+
+        const data = index === 0 ? cumulativeData : dailySessionData;
+        const labels = index === 0 ? books : sessions;
+        
+        charts[chartId] = new Chart(ctx, {
+            type: 'line',
+            data: { datasets: createDatasets(data, labels, index === 1) },
+            options: {
+                ...commonOptions,
+                plugins: {
+                    ...commonOptions.plugins,
+                    title: {
+                        display: true,
+                        text: index === 0 ? 'Cumulative PnL Over Time' : 'Daily Session PnL Comparison'
+                    }
                 }
             }
-        }
-    });
-
-    // Create daily session chart
-    charts['dailySessionPnlChart'] = new Chart(dailySessionCtx, {
-        type: 'line',
-        data: { datasets: dailySessionDatasets },
-        options: {
-            ...commonOptions,
-            plugins: {
-                ...commonOptions.plugins,
-                title: {
-                    display: true,
-                    text: 'Daily Session PnL Comparison'
-                }
-            }
-        }
+        });
     });
 
     // Remove existing controls if any
@@ -1487,23 +1418,34 @@ function createHistoricalCharts(cumulativeData, dailySessionData) {
     const controlsContainer = document.createElement('div');
     controlsContainer.className = 'chart-controls';
     controlsContainer.innerHTML = `
-        <button id="resetZoom">Reset Zoom</button>
-        <select id="timeAggregation">
-            <option value="day">Daily</option>
-            <option value="week">Weekly</option>
-            <option value="month">Monthly</option>
-        </select>
-        <input type="date" id="startDate" value="${dates[0]}">
-        <input type="date" id="endDate" value="${dates[dates.length - 1]}">
-        <button id="applyDateRange">Apply Date Range</button>
+        <div class="control-group">
+            <button id="resetZoom" title="Reset Zoom"><i class="fas fa-undo"></i></button>
+            <select id="timeAggregation" title="Time Aggregation">
+                <option value="day">Daily</option>
+                <option value="week">Weekly</option>
+                <option value="month">Monthly</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <div class="date-picker-container">
+                <input type="text" id="startDate" class="date-picker-input" readonly value="${dates[0]}" title="Start Date">
+                <button id="startDatePicker" class="date-picker-button">
+                    <i class="fas fa-calendar-alt"></i>
+                </button>
+            </div>
+            <div class="date-picker-container">
+                <input type="text" id="endDate" class="date-picker-input" readonly value="${dates[dates.length - 1]}" title="End Date">
+                <button id="endDatePicker" class="date-picker-button">
+                    <i class="fas fa-calendar-alt"></i>
+                </button>
+            </div>
+        </div>
     `;
     document.querySelector('#historical').insertBefore(controlsContainer, document.querySelector('#historical .chart-row'));
 
     // Event listeners for controls
-    
     document.getElementById('resetZoom').addEventListener('click', () => {
-        charts['cumulativePnlChart'].resetZoom();
-        charts['dailySessionPnlChart'].resetZoom();
+        chartIds.forEach(chartId => charts[chartId].resetZoom());
     });
 
     document.getElementById('timeAggregation').addEventListener('change', (e) => {
@@ -1513,24 +1455,43 @@ function createHistoricalCharts(cumulativeData, dailySessionData) {
         updateCharts();
     });
 
-    document.getElementById('applyDateRange').addEventListener('click', () => {
+    function applyDateRange() {
         const startDate = new Date(document.getElementById('startDate').value);
         const endDate = new Date(document.getElementById('endDate').value);
-        charts['cumulativePnlChart'].options.scales.x.min = startDate;
-        charts['cumulativePnlChart'].options.scales.x.max = endDate;
-        charts['dailySessionPnlChart'].options.scales.x.min = startDate;
-        charts['dailySessionPnlChart'].options.scales.x.max = endDate;
-        charts['cumulativePnlChart'].update();
-        charts['dailySessionPnlChart'].update();
+        chartIds.forEach(chartId => {
+            charts[chartId].options.scales.x.min = startDate;
+            charts[chartId].options.scales.x.max = endDate;
+            charts[chartId].update();
+        });
+    }
+
+    ['startDate', 'endDate'].forEach(id => {
+        const input = document.getElementById(id);
+        const picker = new Pikaday({
+            field: input,
+            format: 'YYYY-MM-DD',
+            onSelect: function(date) {
+                input.value = formatDate(date);
+                applyDateRange();
+            }
+        });
+
+        document.getElementById(`${id}Picker`).addEventListener('click', function(e) {
+            e.preventDefault();
+            picker.show();
+        });
+
+        // Store the picker instance
+        input._picker = picker;
     });
 
     // Add toggle button functionality
     const toggleButton = document.getElementById('toggleDailySessionChartType');
     if (toggleButton) {
         toggleButton.addEventListener('click', () => {
-            const newType = charts['dailySessionPnlChart'].config.type === 'line' ? 'bar' : 'line';
-            charts['dailySessionPnlChart'].config.type = newType;
-            charts['dailySessionPnlChart'].update();
+            const chart = charts['dailySessionPnlChart'];
+            chart.config.type = chart.config.type === 'line' ? 'bar' : 'line';
+            chart.update();
         });
     }
 }

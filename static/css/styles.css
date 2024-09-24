@@ -913,25 +913,74 @@ body.dark-mode {
 }
 
 .chart-controls {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
 }
 
 .chart-controls button,
-.chart-controls select,
-.chart-controls input {
-  padding: 5px 10px;
-  border-radius: 5px;
-  border: 1px solid var(--accent-color);
-  background-color: var(--surface-color);
-  color: var(--text-color);
-  cursor: pointer;
+.chart-controls select {
+    padding: 8px 12px;
+    border-radius: 5px;
+    border: 1px solid var(--accent-color);
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s, transform 0.2s;
 }
 
 .chart-controls button:hover,
 .chart-controls select:hover {
-  background-color: var(--accent-color);
-  color: var(--background-color);
+    background-color: var(--accent-color);
+    color: var(--background-color);
+    transform: translateY(-2px);
+}
+
+.chart-controls .date-picker-container {
+    display: flex;
+    align-items: center;
+}
+
+.chart-controls .date-picker-input {
+    padding: 8px;
+    border: 1px solid var(--accent-color);
+    border-radius: 5px 0 0 5px;
+    font-size: 14px;
+    color: var(--text-color);
+    background-color: var(--surface-color);
+    width: 100px;
+}
+
+.chart-controls .date-picker-button {
+    background-color: var(--accent-color);
+    color: var(--background-color);
+    border: none;
+    padding: 8px 12px;
+    border-radius: 0 5px 5px 0;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s, transform 0.2s;
+    height: 100%; /* Make the button the same height as the input */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chart-controls .date-picker-button:hover {
+    background-color: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+.chart-controls .date-picker-button i {
+    pointer-events: none; /* Ensure clicks on the icon still trigger the button */
 }
