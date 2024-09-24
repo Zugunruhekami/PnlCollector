@@ -1269,8 +1269,7 @@ function applyFilters() {
 
 
 
-
-Chart.register(Chart.controllers.matrix);
+// charts start here
 
 function getWeekStart(date) {
     const d = new Date(date);
@@ -1858,6 +1857,11 @@ function updateChart(chartId, createChartFunction, data) {
 }
 
 function createVisualizations() {
+    if (!isChartJsLoaded()) {
+        console.error('Chart.js is not loaded. Visualizations cannot be created.');
+        return;
+    }
+    
     fetch(`/get_pnl_data?date=${selectedDate}`)
         .then(response => response.json())
         .then(data => {
@@ -1952,6 +1956,11 @@ function initializeNavigation() {
 
 
 function initializeVisualization() {
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js is not loaded. Charts will not be initialized.');
+        return;
+    }
+
     // Clear any existing charts
     Object.values(charts).forEach(chart => {
         if (chart) {
@@ -1959,6 +1968,10 @@ function initializeVisualization() {
         }
     });
     charts = {};
+
+    // Register the matrix controller
+    Chart.register(Chart.controllers.matrix);
+
     initializeVisualizationDatePicker();
     createFloatingBackgroundElements();
     createVisualizations();
