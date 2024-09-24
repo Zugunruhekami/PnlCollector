@@ -1272,6 +1272,46 @@ function applyFilters() {
 
 Chart.register(Chart.controllers.matrix);
 
+function getWeekStart(date) {
+    const d = new Date(date);
+    d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+    return d.toISOString().split('T')[0];
+}
+
+function aggregateData(data, aggregationType) {
+    const aggregatedData = {};
+    const dates = Object.keys(data).sort();
+
+    dates.forEach(date => {
+        const dateObj = new Date(date);
+        let key;
+        
+        switch(aggregationType) {
+            case 'week':
+                key = getWeekStart(dateObj);
+                break;
+            case 'month':
+                key = `${dateObj.getFullYear()}-${(dateObj.getMonth() + 1).toString().padStart(2, '0')}-01`;
+                break;
+            default: // 'day'
+                key = date;
+        }
+
+        if (!aggregatedData[key]) {
+            aggregatedData[key] = {...data[date]};
+        } else {
+            Object.keys(data[date]).forEach(subKey => {
+                if (typeof data[date][subKey] === 'number') {
+                    aggregatedData[key][subKey] = (aggregatedData[key][subKey] || 0) + data[date][subKey];
+                }
+            });
+        }
+    });
+
+    return aggregatedData;
+}
+
+
 function createHistoricalCharts(cumulativeData, dailySessionData) {
     const cumulativeCanvas = document.getElementById('cumulativePnlChart');
     const dailySessionCanvas = document.getElementById('dailySessionPnlChart');
@@ -1361,6 +1401,50 @@ function createHistoricalCharts(cumulativeData, dailySessionData) {
         }
     };
 
+    
+    let aggregationType = 'day';
+    let aggregatedCumulativeData = cumulativeData;
+    let aggregatedDailySessionData = dailySessionData;
+
+    function updateCharts() {
+        const cumulativeDatasets = books.map(book => ({
+            label: book,
+            data: Object.entries(aggregatedCumulativeData).map(([date, values]) => ({ 
+                x: new Date(date), 
+                y: values[book] 
+            })),
+            fill: false,
+            borderWidth: 1,
+            pointRadius: 0,
+            pointHoverRadius: 5
+        }));
+
+        const dailySessionDatasets = sessions.map((session, index) => ({
+            label: session,
+            data: Object.entries(aggregatedDailySessionData).map(([date, values]) => ({ 
+                x: new Date(date), 
+                y: values[session] 
+            })),
+            fill: false,
+            borderWidth: 1,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            backgroundColor: `hsla(${index * 60}, 70%, 60%, 0.6)`,
+            borderColor: `hsl(${index * 60}, 70%, 60%)`
+        }));
+
+        charts['cumulativePnlChart'].data.datasets = cumulativeDatasets;
+        charts['dailySessionPnlChart'].data.datasets = dailySessionDatasets;
+
+        charts['cumulativePnlChart'].options.scales.x.time.unit = aggregationType;
+        charts['dailySessionPnlChart'].options.scales.x.time.unit = aggregationType;
+
+        charts['cumulativePnlChart'].update();
+        charts['dailySessionPnlChart'].update();
+    }
+
+
+    
     // Create cumulative chart
     charts['cumulativePnlChart'] = new Chart(cumulativeCtx, {
         type: 'line',
@@ -1416,16 +1500,17 @@ function createHistoricalCharts(cumulativeData, dailySessionData) {
     document.querySelector('#historical').insertBefore(controlsContainer, document.querySelector('#historical .chart-row'));
 
     // Event listeners for controls
+    
     document.getElementById('resetZoom').addEventListener('click', () => {
         charts['cumulativePnlChart'].resetZoom();
         charts['dailySessionPnlChart'].resetZoom();
     });
 
     document.getElementById('timeAggregation').addEventListener('change', (e) => {
-        charts['cumulativePnlChart'].options.scales.x.time.unit = e.target.value;
-        charts['dailySessionPnlChart'].options.scales.x.time.unit = e.target.value;
-        charts['cumulativePnlChart'].update();
-        charts['dailySessionPnlChart'].update();
+        aggregationType = e.target.value;
+        aggregatedCumulativeData = aggregateData(cumulativeData, aggregationType);
+        aggregatedDailySessionData = aggregateData(dailySessionData, aggregationType);
+        updateCharts();
     });
 
     document.getElementById('applyDateRange').addEventListener('click', () => {
