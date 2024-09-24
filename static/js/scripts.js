@@ -1270,27 +1270,105 @@ function applyFilters() {
 
 
 
+Chart.register(Chart.controllers.matrix);
 
+function createHistoricalCharts(cumulativeData, dailySessionData) {
+    const cumulativeCanvas = document.getElementById('cumulativePnlChart');
+    const dailySessionCanvas = document.getElementById('dailySessionPnlChart');
+    
+    // Destroy existing charts if they exist
+    if (charts['cumulativePnlChart']) {
+        charts['cumulativePnlChart'].destroy();
+    }
+    if (charts['dailySessionPnlChart']) {
+        charts['dailySessionPnlChart'].destroy();
+    }
 
-function createCumulativePnlChart(data) {
-    const ctx = document.getElementById('cumulativePnlChart').getContext('2d');
-    const dates = Object.keys(data);
-    const books = Object.keys(data[dates[0]] || {});
-    const datasets = books.map(book => ({
+    const cumulativeCtx = cumulativeCanvas.getContext('2d');
+    const dailySessionCtx = dailySessionCanvas.getContext('2d');
+    
+    const dates = Object.keys(cumulativeData).sort();
+    const books = Object.keys(cumulativeData[dates[0]] || {});
+    const sessions = Object.keys(dailySessionData[dates[0]] || {});
+
+    // Create datasets for cumulative chart
+    const cumulativeDatasets = books.map(book => ({
         label: book,
-        data: dates.map(date => data[date][book]),
-        fill: false
+        data: dates.map(date => ({ x: new Date(date), y: cumulativeData[date][book] })),
+        fill: false,
+        borderWidth: 1,
+        pointRadius: 0,
+        pointHoverRadius: 5
     }));
 
-    return new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: dates,
-            datasets: datasets
+    // Create datasets for daily session chart
+    const dailySessionDatasets = sessions.map((session, index) => ({
+        label: session,
+        data: dates.map(date => ({ x: new Date(date), y: dailySessionData[date][session] })),
+        fill: false,
+        borderWidth: 1,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        backgroundColor: `hsla(${index * 60}, 70%, 60%, 0.6)`,
+        borderColor: `hsl(${index * 60}, 70%, 60%)`
+    }));
+
+    // Common options for both charts
+    const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            x: {
+                type: 'time',
+                time: {
+                    unit: 'day',
+                    displayFormats: {
+                        day: 'MMM d, yyyy'
+                    }
+                },
+                title: {
+                    display: true,
+                    text: 'Date'
+                }
+            },
+            y: {
+                title: {
+                    display: true,
+                    text: 'PnL'
+                }
+            }
         },
+        plugins: {
+            zoom: {
+                pan: {
+                    enabled: true,
+                    mode: 'x'
+                },
+                zoom: {
+                    wheel: {
+                        enabled: true
+                    },
+                    pinch: {
+                        enabled: true
+                    },
+                    mode: 'x'
+                }
+            },
+            legend: {
+                display: true,
+                position: 'top'
+            }
+        }
+    };
+
+    // Create cumulative chart
+    charts['cumulativePnlChart'] = new Chart(cumulativeCtx, {
+        type: 'line',
+        data: { datasets: cumulativeDatasets },
         options: {
-            responsive: true,
+            ...commonOptions,
             plugins: {
+                ...commonOptions.plugins,
                 title: {
                     display: true,
                     text: 'Cumulative PnL Over Time'
@@ -1298,75 +1376,78 @@ function createCumulativePnlChart(data) {
             }
         }
     });
-}
 
-function createDailySessionPnlChart(data) {
-    const canvas = document.getElementById('dailySessionPnlChart');
-    const ctx = canvas.getContext('2d');
-    const dates = Object.keys(data);
-    const sessions = Object.keys(data[dates[0]]);
-    
-    function createDatasets(chartType) {
-        return sessions.map((session, index) => ({
-            label: session,
-            data: dates.map(date => data[date][session]),
-            fill: false,
-            tension: 0.1,
-            backgroundColor: chartType === 'bar' ? `hsla(${index * 60}, 70%, 60%, 0.6)` : undefined,
-            borderColor: chartType === 'line' ? `hsl(${index * 60}, 70%, 60%)` : undefined
-        }));
-    }
-
-    function createChartConfig(chartType) {
-        return {
-            type: chartType,
-            data: {
-                labels: dates,
-                datasets: createDatasets(chartType)
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    title: {
-                        display: true,
-                        text: `Daily Session PnL Comparison (${chartType.charAt(0).toUpperCase() + chartType.slice(1)} Chart)`
-                    },
-                    legend: {
-                        position: 'top',
-                    }
-                },
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Date'
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'PnL'
-                        }
-                    }
+    // Create daily session chart
+    charts['dailySessionPnlChart'] = new Chart(dailySessionCtx, {
+        type: 'line',
+        data: { datasets: dailySessionDatasets },
+        options: {
+            ...commonOptions,
+            plugins: {
+                ...commonOptions.plugins,
+                title: {
+                    display: true,
+                    text: 'Daily Session PnL Comparison'
                 }
             }
-        };
+        }
+    });
+
+    // Remove existing controls if any
+    const existingControls = document.querySelector('#historical .chart-controls');
+    if (existingControls) {
+        existingControls.remove();
     }
 
-    let chart = new Chart(ctx, createChartConfig('line'));
+    // Add controls for the charts
+    const controlsContainer = document.createElement('div');
+    controlsContainer.className = 'chart-controls';
+    controlsContainer.innerHTML = `
+        <button id="resetZoom">Reset Zoom</button>
+        <select id="timeAggregation">
+            <option value="day">Daily</option>
+            <option value="week">Weekly</option>
+            <option value="month">Monthly</option>
+        </select>
+        <input type="date" id="startDate" value="${dates[0]}">
+        <input type="date" id="endDate" value="${dates[dates.length - 1]}">
+        <button id="applyDateRange">Apply Date Range</button>
+    `;
+    document.querySelector('#historical').insertBefore(controlsContainer, document.querySelector('#historical .chart-row'));
 
-    // Add event listener to the toggle button
+    // Event listeners for controls
+    document.getElementById('resetZoom').addEventListener('click', () => {
+        charts['cumulativePnlChart'].resetZoom();
+        charts['dailySessionPnlChart'].resetZoom();
+    });
+
+    document.getElementById('timeAggregation').addEventListener('change', (e) => {
+        charts['cumulativePnlChart'].options.scales.x.time.unit = e.target.value;
+        charts['dailySessionPnlChart'].options.scales.x.time.unit = e.target.value;
+        charts['cumulativePnlChart'].update();
+        charts['dailySessionPnlChart'].update();
+    });
+
+    document.getElementById('applyDateRange').addEventListener('click', () => {
+        const startDate = new Date(document.getElementById('startDate').value);
+        const endDate = new Date(document.getElementById('endDate').value);
+        charts['cumulativePnlChart'].options.scales.x.min = startDate;
+        charts['cumulativePnlChart'].options.scales.x.max = endDate;
+        charts['dailySessionPnlChart'].options.scales.x.min = startDate;
+        charts['dailySessionPnlChart'].options.scales.x.max = endDate;
+        charts['cumulativePnlChart'].update();
+        charts['dailySessionPnlChart'].update();
+    });
+
+    // Add toggle button functionality
     const toggleButton = document.getElementById('toggleDailySessionChartType');
     if (toggleButton) {
         toggleButton.addEventListener('click', () => {
-            const newType = chart.config.type === 'line' ? 'bar' : 'line';
-            chart.destroy(); // Destroy the existing chart
-            Chart.getChart(canvas)?.destroy(); // Ensure any lingering chart instance is destroyed
-            chart = new Chart(ctx, createChartConfig(newType));
+            const newType = charts['dailySessionPnlChart'].config.type === 'line' ? 'bar' : 'line';
+            charts['dailySessionPnlChart'].config.type = newType;
+            charts['dailySessionPnlChart'].update();
         });
     }
-
-    return chart;
 }
 
 function createPnlHeatmap(data) {
@@ -1385,7 +1466,6 @@ function createPnlHeatmap(data) {
     const minValue = Math.min(...heatmapData.map(d => d.v));
     const maxValue = Math.max(...heatmapData.map(d => d.v));
     const absMax = Math.max(Math.abs(minValue), Math.abs(maxValue));
-    // Change the color scale to use red instead of blue
     const colorScale = chroma.scale(['#ff0000', '#ffffff', '#00ff00']).domain([-absMax, 0, absMax]);
 
     const chart = new Chart(ctx, {
@@ -1394,43 +1474,32 @@ function createPnlHeatmap(data) {
             datasets: [{
                 label: 'PNL Heatmap',
                 data: heatmapData,
-                backgroundColor: (context) => colorScale(context.dataset.data[context.dataIndex].v).alpha(0.7).css(),
+                backgroundColor: (context) => colorScale(context.raw.v).alpha(0.7).css(),
                 borderColor: '#ffffff',
                 borderWidth: 1,
-                width: (context) => {
-                    const a = context.chart.chartArea || {};
-                    return (a.right - a.left) / sessions.length - 1;
-                },
-                height: (context) => {
-                    const a = context.chart.chartArea || {};
-                    return (a.bottom - a.top) / books.length - 1;
-                }
+                width: ({ chart }) => (chart.chartArea || {}).width / sessions.length - 1,
+                height: ({ chart }) => (chart.chartArea || {}).height / books.length - 1
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    display: false
-                },
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
                         title: (context) => {
-                            const d = context[0].dataset.data[context[0].dataIndex];
+                            const d = context[0].raw;
                             return `${books[d.y]} - ${sessions[d.x]}`;
                         },
-                        label: (context) => `PNL: ${context.dataset.data[context.dataIndex].v.toFixed(2)}`,
+                        label: (context) => `PNL: ${context.raw.v.toFixed(2)}`,
                     }
                 },
                 title: {
                     display: true,
                     text: 'PNL Performance Heatmap',
                     font: { size: 18, weight: 'bold' },
-                    padding: {
-                        top: 10,
-                        bottom: 30  // Increase bottom padding to prevent overlap with chart
-                    }
+                    padding: { top: 10, bottom: 30 }
                 }
             },
             scales: {
@@ -1439,25 +1508,19 @@ function createPnlHeatmap(data) {
                         callback: (value) => sessions[value],
                         autoSkip: false,
                         maxRotation: 0,
-                        font: {
-                            size: 10
-                        }
+                        font: { size: 10 }
                     },
                     title: {
                         display: true,
                         text: 'Sessions',
-                        padding: {
-                            top: 20  // Add padding to prevent overlap with chart
-                        }
+                        padding: { top: 20 }
                     }
                 },
                 y: {
                     ticks: {
                         callback: (value) => books[value],
                         autoSkip: false,
-                        font: {
-                            size: 10
-                        }
+                        font: { size: 10 }
                     },
                     title: {
                         display: true,
@@ -1468,10 +1531,10 @@ function createPnlHeatmap(data) {
             },
             layout: {
                 padding: {
-                    left: 70,   // Increase left padding for book names
+                    left: 70,
                     right: 20,
-                    top: 50,    // Increase top padding for title
-                    bottom: 30  // Increase bottom padding for session names
+                    top: 50,
+                    bottom: 30
                 }
             }
         }
@@ -1718,6 +1781,11 @@ function updateChart(chartId, createChartFunction, data) {
         return;
     }
 
+    // Special case for historical charts
+    if (chartId === 'cumulativePnlChart' || chartId === 'dailySessionPnlChart') {
+        return; // These charts are handled by createHistoricalCharts
+    }
+
     // Destroy existing chart
     if (charts[chartId]) {
         charts[chartId].destroy();
@@ -1761,8 +1829,7 @@ function createVisualizations() {
 
             // Historical Analysis
             updateChart('historicalTopPerformersChart', (data) => createTopPerformersChart(data, 'historicalTopPerformersChart', 'Top 10 Performing Books (All-time)'), data.top_performers);
-            updateChart('cumulativePnlChart', createCumulativePnlChart, data.cumulative_pnl);
-            updateChart('dailySessionPnlChart', createDailySessionPnlChart, data.daily_session_pnl);
+            createHistoricalCharts(data.cumulative_pnl, data.daily_session_pnl);
             updateChart('bookPerformanceChart', createBookPerformanceChart, data.book_stats);
         })
         .catch(error => console.error('Error fetching PNL data:', error));

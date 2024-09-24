@@ -911,3 +911,27 @@ body.dark-mode {
 .chart-toggle-btn:hover {
   background-color: var(--primary-color);
 }
+
+.chart-controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.chart-controls button,
+.chart-controls select,
+.chart-controls input {
+  padding: 5px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--accent-color);
+  background-color: var(--surface-color);
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.chart-controls button:hover,
+.chart-controls select:hover {
+  background-color: var(--accent-color);
+  color: var(--background-color);
+}
