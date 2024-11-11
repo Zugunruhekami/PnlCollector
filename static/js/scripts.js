@@ -723,13 +723,13 @@ function initializeEmptyTable() {
 
     renderEmptyHierarchy(book_structure);
 
-    // Add Global Total row
+    // Add Global Total row with '-' instead of '0.00'
     const globalTotalRow = document.createElement('div');
     globalTotalRow.className = 'table-row book-row global-total';
     globalTotalRow.innerHTML = `
         <div class="cell book-cell">Global Total</div>
         ${['ASIA', 'LONDON', 'NEW YORK', 'EOD'].map(() => `
-            <div class="cell">0.00</div>
+            <div class="cell missing">-</div>
         `).join('')}
     `;
     tableBody.insertBefore(globalTotalRow, tableBody.firstChild);
